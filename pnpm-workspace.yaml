@@ -1,0 +1,6 @@
+packages:
+  - packages/*
+catalog:
+  three: 0.180.0
+lockfileIncludeTarballUrl: false
+minimumReleaseAge: 1440
