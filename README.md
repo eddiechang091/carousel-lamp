@@ -170,8 +170,11 @@ Carousel Lamp is a **UI-only Anna App**:
 - `app.json` — CLI project identity (slug, name, version).
 - `manifest.json` — schema 2, UI-only, least-privilege permissions
   (`llm.complete` only for now).
-- `src/services/anna/` — runtime connection + `LlmService` wrapper.
-  AI behavior (caption generation) is built on top of this service.
+- `src/services/anna/` — runtime connection + `LlmService` wrapper (text and
+  image content blocks) + AI caption generation. AI behavior: the caption
+  editor has an AI button — the model looks at the selected photo and drafts
+  one poetic caption (≤ 20 characters, current language); the user edits it
+  and saves with the existing Save button.
 
 Publish flow (runs on a machine with the Anna CLI — `anna-app` is not
 installed on the build VM):

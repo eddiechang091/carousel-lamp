@@ -10,6 +10,7 @@ import {
   RotateCcw,
   CirclePlay,
   Pause,
+  Sparkles,
   ImagePlus,
   Crop as CropIcon,
   Trash2,
@@ -43,6 +44,8 @@ import { convertHeic, isHeicFile } from '@/lib/heic';
 import { readSavedView, readMusicPref, saveMusicPref, readThemePref, saveThemePref } from '@/lib/view-storage';
 import { THEMES, THEME_IDS, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
 import { useI18n } from '@/i18n';
+import { getLlmService, LlmUnavailableError, LlmVisionNotCapableError } from '@/services/anna/llm';
+import { generateAiCaption } from '@/services/anna/caption';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 import ThemeIntro from '@/components/common/ThemeIntro';
@@ -58,7 +61,7 @@ type Memory = {
 type Draft = { source: string; image: HTMLImageElement; crop: Crop };
 
 export default function Home() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const musicOnRef = useRef(readMusicPref());
   const [musicOn, setMusicOn] = useState(musicOnRef.current);
   const conversion = useRef<AbortController | null>(null);
@@ -103,6 +106,21 @@ export default function Home() {
     })),
   );
   const [captionDraft, setCaptionDraft] = useState('');
+  const [captionBusy, setCaptionBusy] = useState(false);
+  const [llmAvailable, setLlmAvailable] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    getLlmService()
+      .then((llm) => {
+        if (mounted) setLlmAvailable(llm.available);
+      })
+      .catch(() => {
+        if (mounted) setLlmAvailable(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const memoriesRef = useRef(memories);
   useEffect(() => { memoriesRef.current = memories; }, [memories]);
   useEffect(() => {
@@ -491,6 +509,39 @@ export default function Home() {
     play('hang');
     setNotice(t('notice.photoRemoved'));
   }
+  // AI caption: the model looks at the photo and drafts one poetic line
+  // (<= 20 chars, current language) into the caption input. The user
+  // edits it and saves with the existing Save button — nothing is
+  // auto-persisted here.
+  async function generateCaption() {
+    if (selected < 0 || captionBusy) return;
+    const memory = memoriesRef.current[selected];
+    if (!memory || memory.empty || !memory.preview) {
+      setNotice(t('error.emptyFrame'));
+      return;
+    }
+    setCaptionBusy(true);
+    try {
+      const text = await generateAiCaption({
+        imageDataUrl: memory.preview,
+        locale,
+        themeId,
+      });
+      setCaptionDraft(text);
+      setNotice(t('ai.captionReady'));
+      play('select');
+    } catch (err) {
+      if (err instanceof LlmVisionNotCapableError) {
+        setNotice(t('ai.captionVisionNeeded'));
+      } else if (err instanceof LlmUnavailableError) {
+        setNotice(t('ai.captionUnavailable'));
+      } else {
+        setNotice(t('ai.captionFailed'));
+      }
+    } finally {
+      setCaptionBusy(false);
+    }
+  }
   async function persistCaption(next: string) {
     if (selected < 0 || !api.current || pendingSave.current) return;
     const text = next.trim().slice(0, 40);
@@ -631,6 +682,19 @@ export default function Home() {
             >
               <X />
             </Button>
+            {llmAvailable && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="caption-ai"
+                aria-label={t('a11y.aiCaption')}
+                disabled={captionBusy || memories[selected].empty}
+                onClick={() => void generateCaption()}
+              >
+                <Sparkles />
+                {captionBusy ? t('ai.captionGenerating') : t('action.aiCaption')}
+              </Button>
+            )}
           </div>
           <div className="photo-action-row">
             <Button onClick={() => void openEditor()}>
