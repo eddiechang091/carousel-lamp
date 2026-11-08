@@ -3,14 +3,32 @@ import type { AnnaClient } from "./runtime";
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | LlmContentBlock[];
 }
+
+// MCP-shaped content blocks. Text and image blocks may be mixed in one
+// user message (Anna host ≥ 1.1.0-beta.169, llm.complete multimodal):
+//   { type: 'text', text: '...' }
+//   { type: 'image', data: '<raw base64 or data: URI>', mimeType: 'image/jpeg' }
+//   { type: 'image', url: 'https://...' }  (public HTTPS only, SSRF-gated)
+// Max 20 MB per image; MIME must be image/jpeg|png|gif|webp|bmp|svg+xml.
+// Image blocks are only allowed in user messages.
+export type LlmContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType?: string }
+  | { type: "image"; url: string };
 
 export interface LlmRequest {
   messages: LlmMessage[];
   maxTokens?: number;
   temperature?: number;
   json?: boolean;
+  modelPreferences?: {
+    hints?: unknown;
+    costPriority?: number;
+    speedPriority?: number;
+    intelligencePriority?: number;
+  };
 }
 
 export interface LlmResult {
@@ -23,6 +41,36 @@ export class LlmUnavailableError extends Error {
     super(message);
     this.name = "LlmUnavailableError";
   }
+}
+
+// Thrown when the resolved model cannot see images (host fail-fast
+// APP_MODEL_NOT_VISION_CAPABLE, -32019). Images are never silently
+// dropped, so the UI can tell the user to pick a vision model.
+export class LlmVisionNotCapableError extends Error {
+  readonly code = "APP_MODEL_NOT_VISION_CAPABLE";
+  constructor(message = "This model cannot see images") {
+    super(message);
+    this.name = "LlmVisionNotCapableError";
+  }
+}
+
+export function isVisionNotCapableError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as Record<string, unknown>;
+  const code = typeof record.code === "string" ? record.code : "";
+  const message = error instanceof Error ? error.message : "";
+  const data = record.data;
+  const dataText =
+    data && typeof data === "object"
+      ? JSON.stringify(data)
+      : typeof data === "string"
+        ? data
+        : "";
+  return (
+    code.includes("APP_MODEL_NOT_VISION_CAPABLE") ||
+    message.includes("APP_MODEL_NOT_VISION_CAPABLE") ||
+    dataText.includes("APP_MODEL_NOT_VISION_CAPABLE")
+  );
 }
 
 export interface LlmService {
@@ -79,12 +127,21 @@ export async function getLlmService(): Promise<LlmService> {
       if (!available || !client || !client.llm || !client.llm.complete) {
         throw new LlmUnavailableError();
       }
-      const response = await client.llm.complete({
-        messages: request.messages,
-        max_tokens: request.maxTokens,
-        temperature: request.temperature,
-        response_format: request.json ? { type: "json_object" } : undefined,
-      });
+      let response: unknown;
+      try {
+        response = await client.llm.complete({
+          messages: request.messages,
+          max_tokens: request.maxTokens,
+          temperature: request.temperature,
+          response_format: request.json ? { type: "json_object" } : undefined,
+          modelPreferences: request.modelPreferences,
+        });
+      } catch (error) {
+        if (isVisionNotCapableError(error)) {
+          throw new LlmVisionNotCapableError();
+        }
+        throw error;
+      }
       return { text: extractText(response), raw: response };
     },
   };
