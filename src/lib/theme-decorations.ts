@@ -1038,6 +1038,168 @@ function plumBranch() {
   return g;
 }
 
+// Carnival: Venetian mask — purple eye mask with eye holes, gold trim,
+// feather plumes on top.
+function venetianMask() {
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.22, 0.06);
+  shape.quadraticCurveTo(0, 0.16, 0.22, 0.06);
+  shape.quadraticCurveTo(0.22, -0.06, 0.12, -0.08);
+  shape.quadraticCurveTo(0.06, -0.02, 0, -0.07);
+  shape.quadraticCurveTo(-0.06, -0.02, -0.12, -0.08);
+  shape.quadraticCurveTo(-0.22, -0.06, -0.22, 0.06);
+  for (const ex of [-0.11, 0.11]) {
+    const hole = new THREE.Path();
+    hole.absellipse(ex, 0.02, 0.045, 0.028, 0, Math.PI * 2);
+    shape.holes.push(hole);
+  }
+  const trim = new THREE.Mesh(
+    sharedGeo('carnival-mask-trim', () => new THREE.ExtrudeGeometry(shape, { depth: 0.015, bevelEnabled: false })),
+    sharedMat('carnival-mask-gold', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.25, metalness: 0.85,
+    })),
+  );
+  trim.scale.setScalar(1.07);
+  trim.position.z = -0.012;
+  g.add(trim);
+  const face = new THREE.Mesh(
+    sharedGeo('carnival-mask', () => new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false })),
+    sharedMat('carnival-mask', () => new THREE.MeshStandardMaterial({
+      color: '#8a2be2', roughness: 0.35, metalness: 0.4,
+      emissive: '#8a2be2', emissiveIntensity: 0.3,
+    })),
+  );
+  g.add(face);
+  const featherColors = ['#ff007f', '#00a4ef', '#ffd700'];
+  for (let i = 0; i < 3; i++) {
+    const col = featherColors[i % 3]!;
+    const feather = new THREE.Mesh(
+      sharedGeo('carnival-mask-feather', () => new THREE.ConeGeometry(0.025, 0.16, 6)),
+      sharedMat(`carnival-mask-feather-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 })),
+    );
+    feather.position.set(-0.08 + i * 0.08, 0.2, 0);
+    feather.scale.z = 0.25;
+    feather.rotation.z = (i - 1) * -0.35;
+    g.add(feather);
+  }
+  return g;
+}
+
+// Carnival: feather headdress — gold band with a fan of bright feathers.
+function featherHeaddress() {
+  const g = new THREE.Group();
+  const band = new THREE.Mesh(
+    sharedGeo('carnival-headdress-band', () => new THREE.TorusGeometry(0.16, 0.02, 8, 20, Math.PI)),
+    sharedMat('carnival-headdress-gold', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.25, metalness: 0.85,
+    })),
+  );
+  g.add(band);
+  const featherColors = ['#8a2be2', '#ff007f', '#00a4ef', '#ffd700', '#ff5e78'];
+  for (let i = 0; i < 7; i++) {
+    const col = featherColors[i % 5]!;
+    const feather = new THREE.Mesh(
+      sharedGeo('carnival-headdress-feather', () => new THREE.ConeGeometry(0.03, 0.26, 6)),
+      sharedMat(`carnival-headdress-feather-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.5 })),
+    );
+    const a = (i / 6 - 0.5) * 1.6;
+    feather.position.set(Math.sin(a) * 0.16, 0.14 + Math.cos(a) * 0.06, 0);
+    feather.rotation.z = -a;
+    feather.scale.z = 0.22;
+    g.add(feather);
+  }
+  return g;
+}
+
+// Carnival: samba drum — purple body, cream skins, gold rims.
+function sambaDrum() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('carnival-drum-body', () => new THREE.CylinderGeometry(0.14, 0.14, 0.22, 16)),
+    sharedMat('carnival-drum-body', () => new THREE.MeshStandardMaterial({
+      color: '#8a2be2', roughness: 0.5, emissive: '#8a2be2', emissiveIntensity: 0.15,
+    })),
+  );
+  g.add(body);
+  const skin = sharedMat('carnival-drum-skin', () => new THREE.MeshStandardMaterial({
+    color: '#fdf5e6', roughness: 0.7,
+  }));
+  for (const sy of [-1, 1]) {
+    const disc = new THREE.Mesh(sharedGeo('carnival-drum-skin', () => new THREE.CylinderGeometry(0.14, 0.14, 0.012, 16)), skin);
+    disc.position.y = sy * 0.11;
+    g.add(disc);
+    const rim = new THREE.Mesh(
+      sharedGeo('carnival-drum-rim', () => new THREE.TorusGeometry(0.14, 0.012, 8, 20)),
+      sharedMat('carnival-drum-rim', () => new THREE.MeshStandardMaterial({
+        color: '#ffd700', roughness: 0.25, metalness: 0.85,
+      })),
+    );
+    rim.rotation.x = Math.PI / 2;
+    rim.position.y = sy * 0.11;
+    g.add(rim);
+  }
+  return g;
+}
+
+// Carnival: tassel bead strand — sagging row of bright beads, gold tassel.
+function tasselBeads() {
+  const g = new THREE.Group();
+  const beadColors = ['#8a2be2', '#ffd700', '#ff007f', '#00a4ef'];
+  for (let i = 0; i < 9; i++) {
+    const col = beadColors[i % 4]!;
+    const bead = new THREE.Mesh(
+      sharedGeo('carnival-bead', () => new THREE.SphereGeometry(0.022, 8, 6)),
+      sharedMat(`carnival-bead-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, roughness: 0.3, metalness: 0.4,
+        emissive: col, emissiveIntensity: 0.3,
+      })),
+    );
+    bead.position.set((i - 4) * 0.05, -Math.abs(i - 4) * 0.018, 0);
+    g.add(bead);
+  }
+  const tassel = new THREE.Mesh(
+    sharedGeo('carnival-tassel', () => new THREE.ConeGeometry(0.035, 0.12, 8)),
+    sharedMat('carnival-tassel', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  tassel.position.set(0, -0.14, 0);
+  tassel.rotation.x = Math.PI;
+  g.add(tassel);
+  return g;
+}
+
+// Carnival: streamer ribbon — wavy magenta tube with gold glitter dots.
+function streamerRibbon() {
+  const g = new THREE.Group();
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.4, 0, 0),
+    new THREE.Vector3(-0.2, 0.12, 0.06),
+    new THREE.Vector3(0, 0, -0.05),
+    new THREE.Vector3(0.2, -0.12, 0.05),
+    new THREE.Vector3(0.4, 0, 0),
+  ]);
+  const tube = new THREE.Mesh(
+    sharedGeo('carnival-streamer', () => new THREE.TubeGeometry(curve, 24, 0.015, 6)),
+    sharedMat('carnival-streamer', () => new THREE.MeshStandardMaterial({
+      color: '#ff007f', roughness: 0.4,
+      emissive: '#ff007f', emissiveIntensity: 0.5,
+    })),
+  );
+  g.add(tube);
+  const dotMat = sharedMat('carnival-streamer-dot', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', emissive: '#ffd700', emissiveIntensity: 1.2, roughness: 0.2,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const p = curve.getPoint(i / 4);
+    const dot = new THREE.Mesh(sharedGeo('carnival-streamer-dot', () => new THREE.SphereGeometry(0.012, 6, 6)), dotMat);
+    dot.position.copy(p);
+    g.add(dot);
+  }
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -1359,6 +1521,115 @@ export function createThemeDecorations(
       candle.position.set(Math.sin(a) * 1.3, 0.0, Math.cos(a) * 1.3);
       add(candle, 'bob');
     }
+  }
+
+  if (theme === 'carnival') {
+    // Venetian masks floating around the carousel.
+    for (let i = 0; i < 4; i++) {
+      const m = venetianMask();
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      m.position.set(Math.sin(a) * 2.4, 2.5 + (i % 2) * 1.2, Math.cos(a) * 2.4);
+      m.rotation.y = -a;
+      add(m, 'sway');
+    }
+    // Feather headdresses on the base.
+    for (let i = 0; i < 2; i++) {
+      const h = featherHeaddress();
+      const a = i * Math.PI + 0.9;
+      h.position.set(Math.sin(a) * 1.6, 0.15, Math.cos(a) * 1.6);
+      h.rotation.y = -a;
+      add(h, 'bob');
+    }
+    // Samba drums on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const d = sambaDrum();
+      const a = (i / 3) * Math.PI * 2 + 0.3;
+      d.position.set(Math.sin(a) * 1.9, 0.11, Math.cos(a) * 1.9);
+      add(d, 'bob');
+    }
+    // Tassel bead strands hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const t = tasselBeads();
+      const a = (i / 4) * Math.PI * 2 + 1.2;
+      t.position.set(Math.sin(a) * 2.3, 4.3, Math.cos(a) * 2.3);
+      t.rotation.y = -a;
+      add(t, 'sway');
+    }
+    // Streamer ribbons drifting mid-air.
+    for (let i = 0; i < 3; i++) {
+      const r = streamerRibbon();
+      const a = (i / 3) * Math.PI * 2 + 0.8;
+      r.position.set(Math.sin(a) * 2.8, 2.0 + i * 0.8, Math.cos(a) * 2.8);
+      r.rotation.y = -a;
+      add(r, 'bob');
+    }
+    // Glitter trail: colored points falling + swirling in the vertex
+    // shader, same pattern as the Christmas snow (update() only moves
+    // uniforms). Purple / gold / peacock blue / magenta.
+    const count = 200;
+    const pos = new Float32Array(count * 3);
+    const speeds = new Float32Array(count);
+    const phases = new Float32Array(count);
+    const radii = new Float32Array(count);
+    const colors = new Float32Array(count * 3);
+    const glitterPalette = [
+      new THREE.Color('#8a2be2'), new THREE.Color('#ffd700'),
+      new THREE.Color('#00a4ef'), new THREE.Color('#ff007f'),
+    ];
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r = 2.0 + Math.random() * 2.8;
+      pos.set([Math.sin(a) * r, Math.random() * 7, Math.cos(a) * r], i * 3);
+      speeds[i] = 0.2 + Math.random() * 0.45;
+      phases[i] = Math.random() * Math.PI * 2;
+      radii[i] = r;
+      const col = glitterPalette[i % 4]!;
+      colors.set([col.r, col.g, col.b], i * 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+    geo.setAttribute('aRadius', new THREE.BufferAttribute(radii, 1));
+    geo.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uMotion: { value: 1 },
+        uOpacity: { value: 0.95 },
+        uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1 },
+      },
+      transparent: true, depthWrite: false, toneMapped: false,
+      vertexShader: `
+        attribute float aSpeed; attribute float aPhase; attribute float aRadius;
+        attribute vec3 aColor; varying vec3 vColor;
+        uniform float uTime; uniform float uMotion; uniform float uPixelRatio;
+        void main() {
+          vColor = aColor;
+          vec3 p = position;
+          p.y = mod(position.y + 0.2 - uTime * aSpeed * uMotion, 7.4) - 0.2;
+          float a = atan(position.x, position.z) + uTime * 0.08 * uMotion;
+          p.x = sin(a) * aRadius + sin(uTime * 0.6 + aPhase) * 0.12 * uMotion;
+          p.z = cos(a) * aRadius;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = clamp(0.05 * uPixelRatio * 480.0 / max(1.0, -mv.z), 1.0, 64.0 * uPixelRatio);
+        }`,
+      fragmentShader: `
+        varying vec3 vColor;
+        uniform float uOpacity;
+        void main() {
+          vec2 p = (gl_PointCoord - 0.5) * 2.0;
+          float alpha = (1.0 - smoothstep(0.7, 1.0, length(p))) * uOpacity;
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(vColor, alpha);
+          #include <colorspace_fragment>
+        }`,
+    });
+    const points = new THREE.Points(geo, mat);
+    points.name = 'carnival-glitter';
+    group.add(points);
+    snowPoints.push({ points, material: mat });
   }
 
   // Collect per-layer disposables: geometries / materials / textures owned
