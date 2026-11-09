@@ -1545,6 +1545,201 @@ function bananaPeel() {
   return g;
 }
 
+// Easter: painted egg — pastel canvas texture (stripes + dots), 3 variants.
+function paintedEgg(variant: number) {
+  const g = new THREE.Group();
+  const bases = ['#98ff98', '#b0e0e6', '#d8b4fe'];
+  const stripes = ['#ff9eb5', '#ffd76a', '#ffffff'];
+  const base = bases[variant % 3]!;
+  const stripe = stripes[variant % 3]!;
+  const tex = sharedTex(`easter-egg-${variant % 3}`, () => {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = base; c.fillRect(0, 0, 128, 256);
+    c.fillStyle = stripe;
+    c.fillRect(0, 60, 128, 18); c.fillRect(0, 150, 128, 18);
+    c.fillStyle = '#ffffff';
+    for (let i = 0; i < 8; i++) {
+      c.beginPath(); c.arc(16 + (i % 4) * 32, 105 + Math.floor(i / 4) * 90, 7, 0, Math.PI * 2); c.fill();
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const egg = new THREE.Mesh(
+    sharedGeo('easter-egg', () => new THREE.SphereGeometry(0.12, 16, 12)),
+    sharedMat(`easter-egg-${variant % 3}`, () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.4 })),
+  );
+  egg.scale.y = 1.35;
+  g.add(egg);
+  return g;
+}
+
+// Easter: bunny — cream body, long ears with pink inners, puff tail.
+function bunny() {
+  const g = new THREE.Group();
+  const fur = sharedMat('easter-bunny-fur', () => new THREE.MeshStandardMaterial({
+    color: '#fdfdf5', roughness: 0.7,
+  }));
+  const pink = sharedMat('easter-bunny-pink', () => new THREE.MeshStandardMaterial({
+    color: '#ffb6c1', roughness: 0.6,
+  }));
+  const body = new THREE.Mesh(sharedGeo('easter-bunny-body', () => new THREE.SphereGeometry(0.13, 14, 10)), fur);
+  body.scale.set(1, 1.1, 0.9);
+  body.position.y = 0.14;
+  g.add(body);
+  const head = new THREE.Mesh(sharedGeo('easter-bunny-head', () => new THREE.SphereGeometry(0.085, 14, 10)), fur);
+  head.position.set(0, 0.32, 0.02);
+  g.add(head);
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(sharedGeo('easter-bunny-ear', () => new THREE.SphereGeometry(0.035, 10, 8)), fur);
+    ear.position.set(side * 0.045, 0.46, 0);
+    ear.scale.set(1, 2.6, 0.5);
+    ear.rotation.z = side * -0.15;
+    g.add(ear);
+    const inner = new THREE.Mesh(sharedGeo('easter-bunny-inner-ear', () => new THREE.SphereGeometry(0.02, 8, 6)), pink);
+    inner.position.set(side * 0.045, 0.46, 0.015);
+    inner.scale.set(1, 2.2, 0.3);
+    inner.rotation.z = side * -0.15;
+    g.add(inner);
+    const eye = new THREE.Mesh(
+      sharedGeo('easter-bunny-eye', () => new THREE.SphereGeometry(0.01, 6, 6)),
+      sharedMat('easter-bunny-eye', () => new THREE.MeshBasicMaterial({ color: '#1a1a1a' })),
+    );
+    eye.position.set(side * 0.04, 0.33, 0.09);
+    g.add(eye);
+    const foot = new THREE.Mesh(sharedGeo('easter-bunny-foot', () => new THREE.SphereGeometry(0.045, 8, 6)), fur);
+    foot.position.set(side * 0.06, 0.03, 0.09);
+    foot.scale.set(1, 0.5, 1.4);
+    g.add(foot);
+  }
+  const nose = new THREE.Mesh(
+    sharedGeo('easter-bunny-nose', () => new THREE.SphereGeometry(0.012, 6, 6)),
+    pink,
+  );
+  nose.position.set(0, 0.31, 0.1);
+  g.add(nose);
+  const tail = new THREE.Mesh(sharedGeo('easter-bunny-tail', () => new THREE.SphereGeometry(0.045, 8, 8)), fur);
+  tail.position.set(0, 0.16, -0.13);
+  g.add(tail);
+  return g;
+}
+
+// Easter: carrot — orange cone tip-down, green leaves on top.
+function carrot() {
+  const g = new THREE.Group();
+  const root = new THREE.Mesh(
+    sharedGeo('easter-carrot', () => new THREE.ConeGeometry(0.05, 0.2, 12)),
+    sharedMat('easter-carrot', () => new THREE.MeshStandardMaterial({
+      color: '#ff7f2a', roughness: 0.55, emissive: '#ff7f2a', emissiveIntensity: 0.15,
+    })),
+  );
+  root.rotation.x = Math.PI;
+  root.position.y = 0.1;
+  g.add(root);
+  const leafMat = sharedMat('easter-carrot-leaf', () => new THREE.MeshStandardMaterial({
+    color: '#7ed321', roughness: 0.6,
+  }));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const leaf = new THREE.Mesh(
+      sharedGeo('easter-carrot-leaf', () => new THREE.ConeGeometry(0.018, 0.1, 6)),
+      leafMat,
+    );
+    leaf.position.set(Math.sin(a) * 0.02, 0.24, Math.cos(a) * 0.02);
+    leaf.rotation.set(Math.cos(a) * 0.5, 0, Math.sin(a) * -0.5);
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Easter: daisy — white petals around a yellow center.
+function daisy() {
+  const g = new THREE.Group();
+  const center = new THREE.Mesh(
+    sharedGeo('easter-daisy-center', () => new THREE.SphereGeometry(0.03, 10, 8)),
+    sharedMat('easter-daisy-center', () => new THREE.MeshStandardMaterial({
+      color: '#ffd76a', roughness: 0.4, emissive: '#ffd76a', emissiveIntensity: 0.5,
+    })),
+  );
+  center.position.y = 0.02;
+  g.add(center);
+  const petalMat = sharedMat('easter-daisy-petal', () => new THREE.MeshStandardMaterial({
+    color: '#ffffff', roughness: 0.6, side: THREE.DoubleSide,
+  }));
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const petal = new THREE.Mesh(
+      sharedGeo('easter-daisy-petal', () => new THREE.SphereGeometry(0.03, 8, 6)),
+      petalMat,
+    );
+    petal.position.set(Math.sin(a) * 0.055, 0.015, Math.cos(a) * 0.055);
+    petal.scale.set(1, 0.35, 1.6);
+    petal.rotation.y = a;
+    g.add(petal);
+  }
+  const stem = new THREE.Mesh(
+    sharedGeo('easter-daisy-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.08, 6)),
+    sharedMat('easter-daisy-stem', () => new THREE.MeshStandardMaterial({ color: '#7ed321', roughness: 0.7 })),
+  );
+  stem.position.y = -0.03;
+  g.add(stem);
+  return g;
+}
+
+// Easter: grass tuft — five blades splayed outward.
+function grassTuft() {
+  const g = new THREE.Group();
+  const mat = sharedMat('easter-grass', () => new THREE.MeshStandardMaterial({
+    color: '#7ed321', roughness: 0.7,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.4;
+    const blade = new THREE.Mesh(
+      sharedGeo('easter-grass-blade', () => new THREE.ConeGeometry(0.012, 0.16 + (i % 3) * 0.03, 6)),
+      mat,
+    );
+    blade.position.set(Math.sin(a) * 0.03, 0.08, Math.cos(a) * 0.03);
+    blade.rotation.set(Math.cos(a) * 0.35, 0, Math.sin(a) * -0.35);
+    g.add(blade);
+  }
+  return g;
+}
+
+// Easter: basket — brown basket with a handle, painted eggs tucked inside.
+function easterBasket() {
+  const g = new THREE.Group();
+  const brown = sharedMat('easter-basket', () => new THREE.MeshStandardMaterial({
+    color: '#8b5a2b', roughness: 0.8,
+  }));
+  const body = new THREE.Mesh(
+    sharedGeo('easter-basket-body', () => new THREE.CylinderGeometry(0.16, 0.12, 0.12, 16)),
+    brown,
+  );
+  body.position.y = 0.06;
+  g.add(body);
+  const rim = new THREE.Mesh(
+    sharedGeo('easter-basket-rim', () => new THREE.TorusGeometry(0.16, 0.012, 8, 20)),
+    brown,
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.12;
+  g.add(rim);
+  const handle = new THREE.Mesh(
+    sharedGeo('easter-basket-handle', () => new THREE.TorusGeometry(0.14, 0.012, 6, 16, Math.PI)),
+    brown,
+  );
+  handle.position.y = 0.12;
+  g.add(handle);
+  for (let i = 0; i < 3; i++) {
+    const egg = paintedEgg(i);
+    egg.scale.setScalar(0.55);
+    egg.position.set((i - 1) * 0.07, 0.12, (i % 2) * 0.04 - 0.02);
+    g.add(egg);
+  }
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2069,6 +2264,58 @@ export function createThemeDecorations(
       peel.position.set(Math.sin(a) * 1.5, 0.08, Math.cos(a) * 1.5);
       peel.rotation.y = a;
       add(peel, 'bob');
+    }
+  }
+
+  if (theme === 'easter') {
+    // Painted eggs on the base ring.
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.3;
+      const egg = paintedEgg(i);
+      egg.position.set(Math.sin(a) * 1.9, 0.14, Math.cos(a) * 1.9);
+      egg.rotation.y = a;
+      add(egg, 'bob');
+    }
+    // Bunnies on the base (scaled up so they read past the horses).
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.9;
+      const b = bunny();
+      b.position.set(Math.sin(a) * 1.4, 0.0, Math.cos(a) * 1.4);
+      b.rotation.y = -a;
+      b.scale.setScalar(1.25);
+      add(b, 'bob');
+    }
+    // Carrots on the base ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 1.1;
+      const c = carrot();
+      c.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      c.rotation.y = a;
+      add(c, 'bob');
+    }
+    // Daisies scattered around the base.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.2;
+      const d = daisy();
+      d.position.set(Math.sin(a) * 2.1, 0.08, Math.cos(a) * 2.1);
+      d.rotation.y = a;
+      add(d, 'sway');
+    }
+    // Grass tufts around the base.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.7;
+      const tuft = grassTuft();
+      tuft.position.set(Math.sin(a) * 2.2, 0.0, Math.cos(a) * 2.2);
+      add(tuft, 'sway');
+    }
+    // Easter baskets on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.2;
+      const basket = easterBasket();
+      basket.position.set(Math.sin(a) * 1.2, 0.0, Math.cos(a) * 1.2);
+      basket.rotation.y = -a;
+      basket.scale.setScalar(1.15);
+      add(basket, 'bob');
     }
   }
 
