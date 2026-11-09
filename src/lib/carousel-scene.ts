@@ -7,10 +7,8 @@ import { createMemoryProjections } from './memory-projections';
 import { createHorse, addGarden, addPole } from './carousel-ornaments';
 import { PHOTO_COUNT, loadPhoto, HAND_FONT, drawCaption } from './photos';
 import { translate } from '@/i18n';
-import { gsap } from 'gsap';
 import { THEMES, type ThemeId } from './themes';
 import { createThemeDecorations, type ThemeDecorations } from './theme-decorations';
-import { selectIntroMode, type CameraRig } from './intro-timeline';
 
 export type CarouselAPI = {
   ready: Promise<void>;
@@ -23,7 +21,7 @@ export type CarouselAPI = {
   setPhoto: (index: number, src: string | null) => Promise<void>;
   setCaption: (index: number, caption: string) => Promise<void>;
   swapPhotos: (from: number, to: number) => void;
-  setTheme: (theme: ThemeId, instant?: boolean) => void;
+  setTheme: (theme: ThemeId) => void;
   dispose: () => void;
 };
 export function createCarousel(
@@ -177,12 +175,7 @@ export function createCarousel(
     night = savedView?.night ? 1 : 0,
     nightTarget = savedView?.night ? 1 : 0,
     rotating = savedView?.spinning ?? false,
-    transition = false,
-    // Intro lifecycle: while the intro timeline owns the camera and the
-    // decorations, input and view persistence stay off.
-    introPlaying = false,
-    introPlayed = false,
-    introTl: gsap.core.Timeline | null = null;
+    transition = false;
   // ---- Procedural textures for the clock-themed carousel ----
   function candyTexture() {
     const cv = document.createElement('canvas');
@@ -694,8 +687,7 @@ export function createCarousel(
   let persistedView = '', lastViewWrite = 0, viewSaveFailed = false;
   function persistView() {
     // Photo close-ups are temporary; reopening returns to the last whole-lamp view.
-    // The intro camera is not a view worth saving either.
-    if (active < 0 && !transition && !introPlaying) {
+    if (active < 0 && !transition) {
       overviewPosition.copy(camera.position);
       overviewTarget.copy(controls.target);
     }
@@ -844,7 +836,7 @@ export function createCarousel(
     consumed = false;
     downX = e.clientX; downY = e.clientY;
     const hit = hitAt(e);
-    if (!hit || active >= 0 || transition || introPlaying) return;
+    if (!hit || active >= 0 || transition) return;
     const slot = hit.object.userData.photo as number;
     if (!photoPresent[slot]) return;
     held = { id: e.pointerId, slot, timer: null };
@@ -1009,115 +1001,37 @@ export function createCarousel(
     { mat: cream, key: 'cream' }, { mat: red, key: 'red' }, { mat: sky, key: 'sky' },
     { mat: green, key: 'green' }, { mat: yellow, key: 'yellow' }, { mat: gold, key: 'gold' },
   );
-  function tweenColor(target: THREE.Color, hex: string, instant: boolean) {
-    const c = new THREE.Color(hex);
-    if (instant || reduced) {
-      target.copy(c);
-      return;
-    }
-    gsap.to(target, { r: c.r, g: c.g, b: c.b, duration: 1.15, ease: 'sine.inOut', overwrite: 'auto' });
+  // Palette colours change instantly with the theme — no transition tween.
+  function setColor(target: THREE.Color, hex: string) {
+    target.copy(new THREE.Color(hex));
   }
-  function setTheme(id: ThemeId, instant = false) {
+  function setTheme(id: ThemeId) {
     if (id === currentTheme && decorations?.group.name.endsWith(id)) return;
     currentTheme = id;
     const p = THEMES[id];
-    tintTargets.forEach(({ mat, key }) => tweenColor(mat.color, p.mat[key], instant));
-    tweenColor(roofMaterials[0].color, p.roofA, instant);
-    tweenColor(roofMaterials[1].color, p.roofB, instant);
-    tweenColor(fasciaMaterial.color, p.fascia, instant);
-    tweenColor(shadeMat.color, p.shade, instant);
-    tweenColor(shadeMat.emissive, p.shadeEmissive, instant);
-    tweenColor(concealedLight.emissive, p.concealedEmissive, instant);
-    tweenColor(haloMat.color, p.glow, instant);
-    tweenColor(rimGlowMaterial.color, p.glow, instant);
-    tweenColor(volumeMaterial.uniforms.tint.value, p.beamTint, instant);
-    bulbs.forEach((b) => tweenColor(b.color, p.beamTint, instant));
-    spots.forEach((s) => tweenColor(s.color, p.beamTint, instant));
+    tintTargets.forEach(({ mat, key }) => setColor(mat.color, p.mat[key]));
+    setColor(roofMaterials[0].color, p.roofA);
+    setColor(roofMaterials[1].color, p.roofB);
+    setColor(fasciaMaterial.color, p.fascia);
+    setColor(shadeMat.color, p.shade);
+    setColor(shadeMat.emissive, p.shadeEmissive);
+    setColor(concealedLight.emissive, p.concealedEmissive);
+    setColor(haloMat.color, p.glow);
+    setColor(rimGlowMaterial.color, p.glow);
+    setColor(volumeMaterial.uniforms.tint.value, p.beamTint);
+    bulbs.forEach((b) => setColor(b.color, p.beamTint));
+    spots.forEach((s) => setColor(s.color, p.beamTint));
     projections.setPalette(p.hues);
     const previous = decorations;
-    if (previous) {
-      previous.leave().then(() => {
-        // Guard: a newer setTheme may have replaced the layer while this
-        // one was leaving — only dispose it if it is no longer live,
-        // otherwise a rapid switch strands (or kills) the current layer.
-        if (decorations !== previous) previous.dispose();
-      });
-    }
     decorations = createThemeDecorations(id);
     root.add(decorations.group);
-    // Intro mode: full on first load (no saved view), short on every theme
-    // switch and on first load with a saved view, instant for reduced motion.
-    const isFirst = !introPlayed;
-    introPlayed = true;
-    const mode = selectIntroMode({
-      reduced,
-      hasSavedView: Boolean(savedView),
-      isFirstTheme: isFirst,
-      forceInstant: instant,
-    });
-    // Camera rig: the timeline drives a proxy (distance along the current
-    // view ray + target height); apply() writes it into camera/controls.
-    // Skipped on first load with a saved view — the camera stays where the
-    // user left it. On a switch the micro-push starts from the current ray,
-    // never snaps back to home.
-    const cameraEnabled = mode !== 'instant' && !(isFirst && savedView);
-    let rig: CameraRig | null = null;
-    if (cameraEnabled) {
-      const dir = camera.position.clone().sub(controls.target).normalize();
-      const baseLen = home.distanceTo(homeTarget);
-      const camState = {
-        dist: camera.position.distanceTo(controls.target) / baseLen,
-        targetY: controls.target.y,
-      };
-      rig = {
-        state: camState,
-        apply: () => {
-          controls.target.y = camState.targetY;
-          camera.position.copy(controls.target).addScaledVector(dir, baseLen * camState.dist);
-        },
-        crown: heart,
-      };
-    }
-    // Kill a previous intro before starting a new one (rapid theme switch).
-    if (introTl) {
-      introTl.kill();
-      introTl = null;
-    }
-    introPlaying = mode !== 'instant';
-    controls.enabled = !introPlaying && active < 0;
-    // The dolly starts beyond the orbit clamp (22.7 > maxDistance 20):
-    // widen it for the intro, restore on hand-off.
-    if (introPlaying) controls.maxDistance = 30;
-    const tl = decorations.enter(mode, rig);
-    introTl = tl;
-    if (tl) {
-      // Debug/seek handle for verification (screenshots per beat).
-      (window as unknown as { __introTimeline?: gsap.core.Timeline }).__introTimeline = tl;
-      tl.then(() => {
-        if (introTl !== tl) return; // superseded by a newer intro
-        introTl = null;
-        endIntro();
-      });
-    } else {
-      endIntro();
-    }
-  }
-  function endIntro() {
-    introPlaying = false;
-    controls.enabled = active < 0;
-    controls.maxDistance = 20;
-  }
-  // First visit: pre-pose the camera 1.8x out along the view ray so the
-  // intro timeline's dolly starts exactly here (no one-frame pop when Home
-  // calls setTheme right after creation). Saved views and reduced motion
-  // skip the intro dolly.
-  if (!savedView && !reduced) {
-    camera.position.copy(homeTarget).addScaledVector(home.clone().sub(homeTarget), 1.8);
+    // Direct swap, no exit animation: dispose the old layer synchronously
+    // so a rapid switch can never strand (or resurrect) it.
+    if (previous) previous.dispose();
   }
   animate();
   const keyboard = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return;
-    if (introPlaying) return;
     const target = e.target as HTMLElement;
     if (target.closest('input,button,[role="dialog"]')) return;
     if (e.key === 'Escape') reset();
@@ -1173,8 +1087,8 @@ export function createCarousel(
       a.needsUpdate = b.needsUpdate = true;
       [photoPresent[from], photoPresent[to]] = [photoPresent[to], photoPresent[from]];
     },
-    setTheme(theme: ThemeId, instant = false) {
-      setTheme(theme, instant);
+    setTheme(theme: ThemeId) {
+      setTheme(theme);
     },
     dispose() {
       persistView();
@@ -1182,10 +1096,6 @@ export function createCarousel(
       window.removeEventListener('pagehide', persistView);
       document.removeEventListener('visibilitychange', saveOnHide);
       alive = false;
-      if (introTl) {
-        introTl.kill();
-        introTl = null;
-      }
       clearHeld();
       ghost.remove();
       scene.remove(outline);
@@ -1195,7 +1105,6 @@ export function createCarousel(
       renderer.domElement.removeEventListener('lostpointercapture', cancel);
       window.removeEventListener('blur', cancel);
       window.removeEventListener('keydown', escapeDrag);
-      decorations?.leave();
       decorations?.dispose();
       clock.dispose();
       cancelAnimationFrame(raf);
