@@ -42,13 +42,12 @@ import { MusicBoxAudio } from '@/lib/music-box';
 import { readSavedPhotos, savePhotosLocally, type SavedPhoto } from '@/lib/photo-storage';
 import { convertHeic, isHeicFile } from '@/lib/heic';
 import { readSavedView, readMusicPref, saveMusicPref, readThemePref, saveThemePref } from '@/lib/view-storage';
-import { THEMES, THEME_IDS, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
+import { THEMES, normalizeThemeMode, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
 import { useI18n } from '@/i18n';
 import { getLlmService, LlmUnavailableError, LlmVisionNotCapableError } from '@/services/anna/llm';
 import { generateAiCaption } from '@/services/anna/caption';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
-import ThemeIntro from '@/components/common/ThemeIntro';
 
 type Memory = {
   source: string;
@@ -128,12 +127,7 @@ export default function Home() {
   }, [selected]);
   const play = (kind: Parameters<ChimeAudio['play']>[0]) =>
     audio.current?.play(kind);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const saved = readThemePref();
-    return saved === 'auto' || (THEME_IDS as string[]).includes(saved)
-      ? (saved as ThemeMode)
-      : 'auto';
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => normalizeThemeMode(readThemePref()));
   const [themeId, setThemeId] = useState<ThemeId>(() => resolveTheme(themeMode));
   const themeFirstApplied = useRef(false);
   useEffect(() => {
@@ -180,8 +174,7 @@ export default function Home() {
         setViewSaved,
       );
       const carousel = api.current;
-      // First theme application is instant (no pop-in) so the scene opens themed.
-      carousel.setTheme(resolveTheme(themeMode), true);
+      carousel.setTheme(resolveTheme(themeMode));
       themeFirstApplied.current = true;
       carousel.ready.then(async () => {
         try {
@@ -603,7 +596,6 @@ export default function Home() {
         <ThemeSwitcher value={themeMode} onChange={setThemeMode} />
         <LanguageSwitcher />
       </div>
-      <ThemeIntro key={themeId} themeId={themeId} />
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
         <img src="/carousel-lamp-title-clean.png" alt="" width={900} height={780} draggable={false} />
         <span className="title-sparkles" aria-hidden="true">
