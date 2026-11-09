@@ -53,6 +53,8 @@ type Floater = {
   finalRotY?: number;
   /** false = idle-only floater (the dragon): no wave entrance. */
   entrance: boolean;
+  /** 's2' = flies during the surprise beat (the ghost burst). */
+  beat?: 's2';
 };
 
 // ---------------------------------------------------------------------------
@@ -584,6 +586,8 @@ export function createThemeDecorations(
       /** false = idle-only floater (the dragon): registered for update() but
           not an entrance item — the signature drive flies it instead. */
       entrance?: boolean;
+      /** 's2' = flies during the surprise beat (the ghost burst). */
+      beat?: 's2';
     } = {},
   ) => {
     obj.userData.phase = Math.random() * Math.PI * 2;
@@ -605,6 +609,7 @@ export function createThemeDecorations(
     const floater: Floater = {
       obj, baseY: to.y, phase: obj.userData.phase, kind, extra, group: entranceGroup,
       from, ctrl, to, scaleFrom: opts.scaleFrom, finalRotY: opts.finalRotY, entrance,
+      beat: opts.beat,
     };
     if (entrance) {
       // Parked off-stage (and small) from the very first frame: t=0 is a
@@ -633,7 +638,7 @@ export function createThemeDecorations(
       const a = (i / 5) * Math.PI * 2 + 1;
       const fx = Math.sin(a) * 3.1, fz = Math.cos(a) * 3.1;
       gh.position.set(fx, 1.4 + i * 0.75, fz);
-      add(gh, 'sway', undefined, 'flyer', { flavor: 'ghost', scaleFrom: 1.5 });
+      add(gh, 'sway', undefined, 'flyer', { flavor: 'ghost', scaleFrom: 1.5, beat: 's2' });
     }
     // 12 bats sweep in from off-screen, then orbit.
     for (let i = 0; i < 12; i++) {
@@ -879,7 +884,7 @@ export function createThemeDecorations(
         .filter(f => f.entrance)
         .map((f): EntranceItem => ({
           obj: f.obj, from: f.from, to: f.to, ctrl: f.ctrl, group: f.group,
-          scaleFrom: f.scaleFrom, finalRotY: f.finalRotY,
+          scaleFrom: f.scaleFrom, finalRotY: f.finalRotY, beat: f.beat,
         })),
       signature,
       flash: flashMat,

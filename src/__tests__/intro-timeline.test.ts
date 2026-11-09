@@ -217,6 +217,24 @@ describe('buildIntroTimeline', () => {
     }
   });
 
+  it('s2-beat items fly during the surprise beat, ahead of the s3 waves', () => {
+    const ghost = mockItem('flyer');
+    ghost.beat = 's2';
+    const wave = mockItem('main');
+    const plan = fullPlan();
+    plan.items = [ghost, wave];
+    const { rig } = mockRig();
+    const tl = buildIntroTimeline(plan, rig, 'full', true)!;
+    tl.pause();
+    tl.time(1.2);
+    // Ghost mid-burst (started 0.8, 1.1s long); the wave item still parked.
+    expect(ghost.obj.position.x).not.toBeCloseTo(ghost.from.x, 1);
+    expect(ghost.obj.position.x).not.toBeCloseTo(ghost.to.x, 1);
+    expect(wave.obj.position.x).toBeCloseTo(wave.from.x, 5);
+    tl.time(5);
+    expect(ghost.obj.position.x).toBeCloseTo(ghost.to.x, 5);
+  });
+
   it('instant mode builds no timeline', () => {
     const { rig } = mockRig();
     expect(buildIntroTimeline(fullPlan(), rig, 'instant', true)).toBeNull();

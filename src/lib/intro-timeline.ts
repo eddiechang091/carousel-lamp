@@ -165,6 +165,8 @@ export type EntranceItem = {
   scaleFrom?: number;
   /** rotation.y to settle at (orbit items arrive already facing travel). */
   finalRotY?: number;
+  /** 's2' = flies during the surprise beat (the ghost burst); default s3 waves. */
+  beat?: 's2';
 };
 
 export type SignatureActor = {
@@ -298,8 +300,15 @@ export function buildIntroTimeline(
   }
 
   // ---- Waves: main, then ambience, then flyers; 30ms stagger inside a wave ----
+  // s2 items (the ghost burst) fly during the surprise beat instead.
   const seen: Record<EntranceGroup, number> = { main: 0, ambient: 0, flyer: 0 };
+  let s2seen = 0;
   for (const item of plan.items) {
+    if (item.beat === 's2' && full) {
+      flyItem(tl, item, 0.8 + s2seen * 0.12, 1.1);
+      s2seen++;
+      continue;
+    }
     const at = s3 + WAVE_START[item.group] + seen[item.group] * 0.03;
     seen[item.group]++;
     flyItem(tl, item, at, waveDur);
