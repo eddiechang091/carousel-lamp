@@ -2279,6 +2279,208 @@ function sachet() {
   return g;
 }
 
+// ---------------------------------------------------------------------------
+// Mid-Autumn Festival: full moon, jade rabbit, mooncakes, osmanthus,
+// paper lanterns. No PointLight anywhere — the moon and lanterns read via
+// emissive + the shared additive glow sprite.
+// ---------------------------------------------------------------------------
+
+function moonTexture(): THREE.CanvasTexture {
+  return sharedTex('mid-autumn-moon', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#f5f5f5'; c.fillRect(0, 0, 256, 256);
+    // Soft craters: overlapping low-alpha grey discs.
+    const craters: [number, number, number, string][] = [
+      [90, 80, 26, 'rgba(178,178,198,0.8)'], [150, 110, 18, 'rgba(186,186,204,0.75)'],
+      [110, 160, 30, 'rgba(172,172,194,0.75)'], [180, 170, 14, 'rgba(188,188,206,0.75)'],
+      [70, 130, 12, 'rgba(182,182,200,0.75)'], [160, 60, 10, 'rgba(190,190,208,0.7)'],
+    ];
+    for (const [x, y, r, col] of craters) {
+      c.fillStyle = col;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+function fullMoon() {
+  const g = new THREE.Group();
+  const disc = new THREE.Mesh(
+    sharedGeo('mid-autumn-moon', () => new THREE.SphereGeometry(0.55, 24, 18)),
+    sharedMat('mid-autumn-moon', () => new THREE.MeshStandardMaterial({
+      map: moonTexture(), roughness: 0.9,
+      emissive: '#fff8e0', emissiveIntensity: 0.35,
+    })),
+  );
+  g.add(disc);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(2.6);
+  g.add(glow);
+  return g;
+}
+
+// Jade rabbit — white fur, red eyes, long ears; larger than the Easter
+// bunny so it reads past the horses.
+function moonRabbit() {
+  const g = new THREE.Group();
+  const fur = sharedMat('mid-autumn-rabbit-fur', () => new THREE.MeshStandardMaterial({
+    color: '#f5f5f5', roughness: 0.75,
+  }));
+  const body = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-body', () => new THREE.SphereGeometry(0.13, 14, 10)), fur);
+  body.scale.set(1, 1.1, 0.9);
+  body.position.y = 0.14;
+  g.add(body);
+  const head = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-head', () => new THREE.SphereGeometry(0.085, 14, 10)), fur);
+  head.position.set(0, 0.32, 0.02);
+  g.add(head);
+  const eyeMat = sharedMat('mid-autumn-rabbit-eye', () => new THREE.MeshBasicMaterial({ color: '#c41e3a' }));
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-ear', () => new THREE.SphereGeometry(0.032, 10, 8)), fur);
+    ear.position.set(side * 0.045, 0.48, 0);
+    ear.scale.set(1, 3.0, 0.5);
+    ear.rotation.z = side * -0.12;
+    g.add(ear);
+    const eye = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-eye', () => new THREE.SphereGeometry(0.012, 6, 6)), eyeMat);
+    eye.position.set(side * 0.04, 0.33, 0.085);
+    g.add(eye);
+    const foot = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-foot', () => new THREE.SphereGeometry(0.045, 8, 6)), fur);
+    foot.position.set(side * 0.06, 0.03, 0.09);
+    foot.scale.set(1, 0.5, 1.4);
+    g.add(foot);
+  }
+  const nose = new THREE.Mesh(
+    sharedGeo('mid-autumn-rabbit-nose', () => new THREE.SphereGeometry(0.012, 6, 6)),
+    sharedMat('mid-autumn-rabbit-nose', () => new THREE.MeshBasicMaterial({ color: '#d4556a' })),
+  );
+  nose.position.set(0, 0.31, 0.1);
+  g.add(nose);
+  const tail = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-tail', () => new THREE.SphereGeometry(0.045, 8, 8)), fur);
+  tail.position.set(0, 0.16, -0.13);
+  g.add(tail);
+  return g;
+}
+
+function mooncakeTopTexture(): THREE.CanvasTexture {
+  return sharedTex('mid-autumn-mooncake-top', () => {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#d99a2b'; c.fillRect(0, 0, 128, 128);
+    c.strokeStyle = '#8a5a12'; c.lineWidth = 4;
+    c.beginPath(); c.arc(64, 64, 44, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(64, 64, 16, 0, Math.PI * 2); c.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      c.beginPath();
+      c.moveTo(64 + Math.cos(a) * 18, 64 + Math.sin(a) * 18);
+      c.lineTo(64 + Math.cos(a) * 42, 64 + Math.sin(a) * 42);
+      c.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+// Mooncake on a small porcelain plate.
+function mooncake() {
+  const g = new THREE.Group();
+  const plate = new THREE.Mesh(
+    sharedGeo('mid-autumn-plate', () => new THREE.CylinderGeometry(0.15, 0.11, 0.02, 20)),
+    sharedMat('mid-autumn-plate', () => new THREE.MeshStandardMaterial({ color: '#e8eef7', roughness: 0.25 })),
+  );
+  plate.position.y = 0.01;
+  g.add(plate);
+  const cake = new THREE.Mesh(
+    sharedGeo('mid-autumn-cake', () => new THREE.CylinderGeometry(0.11, 0.11, 0.06, 20)),
+    sharedMat('mid-autumn-cake', () => new THREE.MeshStandardMaterial({
+      color: '#c98a2e', roughness: 0.55, emissive: '#c98a2e', emissiveIntensity: 0.15,
+    })),
+  );
+  cake.position.y = 0.05;
+  g.add(cake);
+  const top = new THREE.Mesh(
+    sharedGeo('mid-autumn-cake-top', () => new THREE.CircleGeometry(0.105, 20)),
+    sharedMat('mid-autumn-cake-top', () => new THREE.MeshStandardMaterial({
+      map: mooncakeTopTexture(), roughness: 0.55,
+    })),
+  );
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.081;
+  g.add(top);
+  return g;
+}
+
+// Osmanthus branch — curved tube stem, tiny yellow flower clusters,
+// a few green leaves.
+function osmanthusBranch() {
+  const g = new THREE.Group();
+  const stemCurve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.12, 0.22, 0),
+    new THREE.Vector3(0.05, 0.46, 0),
+  );
+  const stem = new THREE.Mesh(
+    sharedGeo('mid-autumn-osmanthus-stem', () => new THREE.TubeGeometry(stemCurve, 8, 0.012, 6)),
+    sharedMat('mid-autumn-osmanthus-stem', () => new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.85 })),
+  );
+  g.add(stem);
+  const flowerMat = sharedMat('mid-autumn-osmanthus-flower', () => new THREE.MeshStandardMaterial({
+    color: '#f8de7e', roughness: 0.5, emissive: '#f8de7e', emissiveIntensity: 0.7,
+  }));
+  const leafMat = sharedMat('mid-autumn-osmanthus-leaf', () => new THREE.MeshStandardMaterial({ color: '#4a7a3a', roughness: 0.7 }));
+  for (let i = 0; i < 5; i++) {
+    const p = stemCurve.getPoint(0.15 + i * 0.17);
+    for (let j = 0; j < 4; j++) {
+      const a = (j / 4) * Math.PI * 2 + i;
+      const f = new THREE.Mesh(sharedGeo('mid-autumn-osmanthus-bloom', () => new THREE.SphereGeometry(0.018, 6, 6)), flowerMat);
+      f.position.set(p.x + Math.cos(a) * 0.03, p.y + (j % 2) * 0.02, p.z + Math.sin(a) * 0.03);
+      g.add(f);
+    }
+  }
+  for (let i = 0; i < 3; i++) {
+    const p = stemCurve.getPoint(0.3 + i * 0.25);
+    const leaf = new THREE.Mesh(sharedGeo('mid-autumn-osmanthus-leaf', () => new THREE.SphereGeometry(0.045, 8, 6)), leafMat);
+    leaf.position.set(p.x - 0.05, p.y, p.z);
+    leaf.scale.set(1.6, 0.5, 0.8);
+    leaf.rotation.z = 0.5;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Pale paper lantern — warm gold-cream, distinct from the red
+// spring-festival lantern. Glow via emissive + shared sprite.
+function paperLantern() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('mid-autumn-paper-lantern', () => new THREE.SphereGeometry(0.13, 16, 12)),
+    sharedMat('mid-autumn-paper-lantern', () => new THREE.MeshStandardMaterial({
+      color: '#fdf6d8', roughness: 0.5,
+      emissive: '#ffe9a8', emissiveIntensity: 0.6,
+    })),
+  );
+  body.scale.set(1, 0.88, 1);
+  g.add(body);
+  const capMat = sharedMat('mid-autumn-lantern-gold', () => new THREE.MeshStandardMaterial({ color: '#d4a24a', roughness: 0.3, metalness: 0.6 }));
+  const cap = new THREE.Mesh(sharedGeo('mid-autumn-lantern-cap', () => new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12)), capMat);
+  cap.position.y = 0.12;
+  g.add(cap);
+  const tassel = new THREE.Mesh(
+    sharedGeo('mid-autumn-lantern-tassel', () => new THREE.ConeGeometry(0.02, 0.09, 8)),
+    sharedMat('mid-autumn-lantern-tassel', () => new THREE.MeshStandardMaterial({ color: '#d4556a', roughness: 0.6 })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.16;
+  g.add(tassel);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(0.55);
+  g.add(glow);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2970,6 +3172,55 @@ export function createThemeDecorations(
       s.rotation.y = -a;
       s.scale.setScalar(1.3);
       add(s, 'sway');
+    }
+  }
+
+  if (theme === 'mid-autumn') {
+    // Full moon high in front, glowing via emissive + shared sprite.
+    const moon = fullMoon();
+    moon.position.set(Math.sin(0.5) * 3.4, 5.7, Math.cos(0.5) * 3.4);
+    add(moon, 'sway');
+    // Jade rabbits on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.2;
+      const r = moonRabbit();
+      r.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      r.rotation.y = -a;
+      r.scale.setScalar(1.35);
+      add(r, 'bob');
+    }
+    // Mooncakes on the base ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const m = mooncake();
+      m.position.set(Math.sin(a) * 1.95, 0.0, Math.cos(a) * 1.95);
+      m.rotation.y = a;
+      add(m, 'bob');
+    }
+    // Osmanthus branches around the base.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.9;
+      const b = osmanthusBranch();
+      b.position.set(Math.sin(a) * 2.0, 0.0, Math.cos(a) * 2.0);
+      b.rotation.y = -a;
+      b.rotation.z = -0.2;
+      b.scale.setScalar(1.2);
+      add(b, 'sway');
+    }
+    // Paper lanterns hanging from the canopy rim.
+    for (let i = 0; i < 6; i++) {
+      const l = paperLantern();
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      l.position.set(Math.sin(a) * 2.35, 4.35 + (i % 2) * 0.4, Math.cos(a) * 2.35);
+      add(l, 'sway');
+    }
+    // Clouds drifting around the carousel.
+    for (let i = 0; i < 5; i++) {
+      const c = cloud();
+      const a = (i / 5) * Math.PI * 2 + 0.6;
+      c.position.set(Math.sin(a) * 3.6, 1.3 + i * 0.85, Math.cos(a) * 3.6);
+      c.scale.setScalar(0.9 + (i % 3) * 0.25);
+      add(c, 'orbitCloud', { angle: a, radius: 3.6, y: 1.3 + i * 0.85, speed: 0.05 + (i % 3) * 0.02 });
     }
   }
 
