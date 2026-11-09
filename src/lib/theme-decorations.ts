@@ -93,7 +93,7 @@ function pumpkin(faceVariant: number) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 16, 12)),
-    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05 })),
+    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05, emissive: '#ff6a1a', emissiveIntensity: 0.5 })),
   );
   body.scale.set(1, 0.82, 1); g.add(body);
   // Two side-lobes for a rounder look
@@ -114,8 +114,12 @@ function pumpkin(faceVariant: number) {
     sharedMat(`pumpkin-face-mat-${faceVariant % 3}`, () => new THREE.MeshBasicMaterial({ map: pumpkinFaceTexture(faceVariant), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false })),
   );
   face.position.set(0, -0.01, 0.205); g.add(face);
-  const glow = new THREE.PointLight('#ff8c26', 1.8, 1.8, 2);
-  glow.position.y = 0.05; g.add(glow);
+  // No PointLight: the emissive body + a shared glow sprite read the same
+  // (6 pumpkins used to carry 6 lights).
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.05;
+  glow.scale.setScalar(0.6);
+  g.add(glow);
   return g;
 }
 
@@ -135,7 +139,7 @@ function ghost() {
     return new THREE.LatheGeometry(pts, 24);
   }), sharedMat('ghost-body', () => new THREE.MeshStandardMaterial({
     color: '#ddeeff', transparent: true, opacity: 0.62,
-    roughness: 0.2, emissive: '#99ccff', emissiveIntensity: 0.55, side: THREE.DoubleSide,
+    roughness: 0.2, emissive: '#99ccff', emissiveIntensity: 0.7, side: THREE.DoubleSide,
   })));
   g.add(body);
   const eyeMat = sharedMat('ghost-eye', () => new THREE.MeshBasicMaterial({ color: '#1a0a2e' }));
@@ -147,9 +151,12 @@ function ghost() {
     const pupil = new THREE.Mesh(sharedGeo('ghost-pupil', () => new THREE.SphereGeometry(0.012, 6, 6)), pupilMat);
     pupil.position.set(x, 0.17, 0.155); g.add(pupil);
   }
-  // inner glow point light
-  const inner = new THREE.PointLight('#88ccff', 0.9, 1.2, 2);
-  inner.position.set(0, 0.1, 0); g.add(inner);
+  // No PointLight (5 ghosts used to carry 5 lights): the emissive body +
+  // a shared glow sprite read the same.
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.set(0, 0.1, 0);
+  glow.scale.setScalar(0.7);
+  g.add(glow);
   return g;
 }
 
@@ -291,6 +298,75 @@ function skeleton3d() {
     upper.position.set(side * 0.07, 0.17, 0); g.add(upper);
     const lower = new THREE.Mesh(sharedGeo('skeleton-leg-lower', () => new THREE.CylinderGeometry(0.02, 0.02, 0.28, 8)), bone);
     lower.position.set(side * 0.07, -0.12, 0); g.add(lower);
+  }
+  return g;
+}
+
+// Wizard hat — midnight-purple cone with a bent tip, gold band, wide
+// brim. No light; the band and stars read via emissive.
+function wizardHat() {
+  const g = new THREE.Group();
+  const purple = sharedMat('halloween-wizard-purple', () => new THREE.MeshStandardMaterial({
+    color: '#2e0854', roughness: 0.6, emissive: '#7a4fd0', emissiveIntensity: 0.35,
+  }));
+  const gold = sharedMat('halloween-wizard-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.6, emissive: '#ffd700', emissiveIntensity: 0.3,
+  }));
+  const brim = new THREE.Mesh(sharedGeo('halloween-wizard-brim', () => new THREE.CylinderGeometry(0.24, 0.26, 0.02, 20)), purple);
+  brim.position.y = 0.01;
+  g.add(brim);
+  const cone = new THREE.Mesh(sharedGeo('halloween-wizard-cone', () => new THREE.ConeGeometry(0.14, 0.34, 16)), purple);
+  cone.position.y = 0.19;
+  g.add(cone);
+  const tip = new THREE.Mesh(sharedGeo('halloween-wizard-tip', () => new THREE.ConeGeometry(0.05, 0.14, 10)), purple);
+  tip.position.set(0.07, 0.38, 0);
+  tip.rotation.z = -0.7;
+  g.add(tip);
+  const band = new THREE.Mesh(sharedGeo('halloween-wizard-band', () => new THREE.CylinderGeometry(0.145, 0.15, 0.04, 16)), gold);
+  band.position.y = 0.08;
+  g.add(band);
+  // Tiny gold stars on the cone.
+  for (let i = 0; i < 3; i++) {
+    const star = new THREE.Mesh(sharedGeo('halloween-wizard-star', () => new THREE.SphereGeometry(0.012, 6, 6)), gold);
+    const a = i * 2.1;
+    star.position.set(Math.cos(a) * 0.09, 0.16 + i * 0.07, Math.sin(a) * 0.09);
+    g.add(star);
+  }
+  return g;
+}
+
+// Candy jar — glass jar full of wrapped candies, gold lid, a few
+// spilled at the foot. No light; candies read via emissive.
+function candyJar() {
+  const g = new THREE.Group();
+  const glass = sharedMat('halloween-candy-glass', () => new THREE.MeshStandardMaterial({
+    color: '#cfe8ff', transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1,
+  }));
+  const jar = new THREE.Mesh(sharedGeo('halloween-candy-jar', () => new THREE.CylinderGeometry(0.14, 0.13, 0.24, 20)), glass);
+  jar.position.y = 0.12;
+  g.add(jar);
+  const lid = new THREE.Mesh(
+    sharedGeo('halloween-candy-lid', () => new THREE.CylinderGeometry(0.15, 0.15, 0.035, 20)),
+    sharedMat('halloween-candy-lid', () => new THREE.MeshStandardMaterial({ color: '#c9902e', roughness: 0.35, metalness: 0.6 })),
+  );
+  lid.position.y = 0.26;
+  g.add(lid);
+  const candyColors = ['#ff4466', '#44ffaa', '#ffdd22', '#aa44ff', '#ff7518'];
+  for (let i = 0; i < 6; i++) {
+    const col = candyColors[i % candyColors.length];
+    const candy = new THREE.Mesh(sharedGeo('halloween-candy', () => new THREE.SphereGeometry(0.032, 8, 6)),
+      sharedMat(`halloween-candy-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, emissive: col, emissiveIntensity: 0.35 })));
+    const a = (i / 6) * Math.PI * 2;
+    candy.position.set(Math.cos(a) * 0.06, 0.07 + (i % 3) * 0.06, Math.sin(a) * 0.06);
+    g.add(candy);
+  }
+  // Spilled candies at the foot of the jar.
+  for (let i = 0; i < 3; i++) {
+    const col = candyColors[(i + 2) % candyColors.length];
+    const candy = new THREE.Mesh(sharedGeo('halloween-candy', () => new THREE.SphereGeometry(0.025, 8, 6)),
+      sharedMat(`halloween-candy-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, emissive: col, emissiveIntensity: 0.35 })));
+    candy.position.set(0.2 + i * 0.06, 0.025, 0.08 - i * 0.05);
+    g.add(candy);
   }
   return g;
 }
@@ -2551,6 +2627,30 @@ export function createThemeDecorations(
     bucket.position.set(1.0, 0.22, 1.0);
     bucket.rotation.y = -0.5;
     add(bucket, 'bob');
+    // Wizard hats — two on the base, one floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.4;
+      const hat = wizardHat();
+      hat.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      hat.rotation.y = -a;
+      hat.rotation.z = 0.12;
+      hat.scale.setScalar(1.3);
+      add(hat, 'bob');
+    }
+    const floatHat = wizardHat();
+    floatHat.position.set(-2.4, 2.6, 1.2);
+    floatHat.rotation.z = -0.25;
+    floatHat.scale.setScalar(1.2);
+    add(floatHat, 'sway');
+    // Candy jars on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.2;
+      const jar = candyJar();
+      jar.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      jar.rotation.y = -a;
+      jar.scale.setScalar(1.2);
+      add(jar, 'bob');
+    }
   }
 
   if (theme === 'christmas') {
