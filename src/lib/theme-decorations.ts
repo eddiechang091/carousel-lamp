@@ -710,6 +710,136 @@ function partyConfetti() {
   return g;
 }
 
+// Valentine's: heart shape shared by balloons and arrowheads.
+function heartShape(scale = 1): THREE.Shape {
+  const s = new THREE.Shape();
+  s.moveTo(0, 0.06 * scale);
+  s.bezierCurveTo(0, 0.12 * scale, -0.09 * scale, 0.12 * scale, -0.09 * scale, 0.05 * scale);
+  s.bezierCurveTo(-0.09 * scale, -0.01 * scale, 0, -0.04 * scale, 0, -0.09 * scale);
+  s.bezierCurveTo(0, -0.04 * scale, 0.09 * scale, -0.01 * scale, 0.09 * scale, 0.05 * scale);
+  s.bezierCurveTo(0.09 * scale, 0.12 * scale, 0, 0.12 * scale, 0, 0.06 * scale);
+  return s;
+}
+
+// Valentine's: floating heart balloon — extruded heart, rose pink, string.
+function heartBalloon() {
+  const g = new THREE.Group();
+  const heart = new THREE.Mesh(
+    sharedGeo('val-heart', () => new THREE.ExtrudeGeometry(heartShape(1.4), { depth: 0.03, bevelEnabled: false })),
+    sharedMat('val-heart', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.35,
+      emissive: '#c71585', emissiveIntensity: 0.35,
+    })),
+  );
+  g.add(heart);
+  const string = new THREE.Mesh(
+    sharedGeo('val-balloon-string', () => new THREE.CylinderGeometry(0.003, 0.003, 0.3, 6)),
+    sharedMat('val-balloon-string', () => new THREE.MeshStandardMaterial({ color: '#fdf5e6', roughness: 0.6 })),
+  );
+  string.position.set(0, -0.28, 0.015);
+  g.add(string);
+  return g;
+}
+
+// Valentine's: a single rose petal — flattened, slightly cupped sphere.
+function rosePetal() {
+  const g = new THREE.Group();
+  const petal = new THREE.Mesh(
+    sharedGeo('val-petal', () => new THREE.SphereGeometry(0.05, 12, 8)),
+    sharedMat('val-petal', () => new THREE.MeshStandardMaterial({
+      color: '#ffb6c1', roughness: 0.5,
+      emissive: '#ff8fb8', emissiveIntensity: 0.2, side: THREE.DoubleSide,
+    })),
+  );
+  petal.scale.set(1, 0.18, 0.7);
+  petal.rotation.x = -0.4;
+  g.add(petal);
+  return g;
+}
+
+// Valentine's: cupid's arrow — gold shaft, heart head, feather fletching.
+function cupidsArrow() {
+  const g = new THREE.Group();
+  const gold = sharedMat('val-arrow-gold', () => new THREE.MeshStandardMaterial({
+    color: '#d4a24a', roughness: 0.3, metalness: 0.8,
+  }));
+  const shaft = new THREE.Mesh(
+    sharedGeo('val-arrow-shaft', () => new THREE.CylinderGeometry(0.012, 0.012, 0.7, 8)),
+    gold,
+  );
+  shaft.rotation.z = Math.PI / 2;
+  g.add(shaft);
+  const head = new THREE.Mesh(
+    sharedGeo('val-arrow-head', () => new THREE.ExtrudeGeometry(heartShape(0.9), { depth: 0.015, bevelEnabled: false })),
+    sharedMat('val-arrow-head', () => new THREE.MeshStandardMaterial({
+      color: '#c71585', roughness: 0.35, metalness: 0.4,
+      emissive: '#c71585', emissiveIntensity: 0.4,
+    })),
+  );
+  head.position.set(0.35, -0.08, 0);
+  g.add(head);
+  const feather = sharedMat('val-arrow-feather', () => new THREE.MeshStandardMaterial({
+    color: '#fdf5e6', roughness: 0.7, side: THREE.DoubleSide,
+  }));
+  for (const sy of [-1, 1]) {
+    const f = new THREE.Mesh(sharedGeo('val-arrow-feather', () => new THREE.PlaneGeometry(0.12, 0.05)), feather);
+    f.position.set(-0.36, sy * 0.03, 0);
+    f.rotation.z = sy * 0.4;
+    g.add(f);
+  }
+  return g;
+}
+
+// Valentine's: gift box in rose pink with a pearl ribbon and heart on top.
+function roseGiftBox() {
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(
+    sharedGeo('val-gift-box', () => new THREE.BoxGeometry(0.14, 0.12, 0.14)),
+    sharedMat('val-gift-box', () => new THREE.MeshStandardMaterial({ color: '#ff69b4', roughness: 0.5 })),
+  );
+  g.add(box);
+  const ribbon = sharedMat('val-gift-ribbon', () => new THREE.MeshStandardMaterial({
+    color: '#fdf5e6', roughness: 0.35, metalness: 0.3,
+  }));
+  const band = new THREE.Mesh(sharedGeo('val-gift-band', () => new THREE.BoxGeometry(0.145, 0.125, 0.035)), ribbon);
+  g.add(band);
+  const band2 = new THREE.Mesh(sharedGeo('val-gift-band2', () => new THREE.BoxGeometry(0.035, 0.125, 0.145)), ribbon);
+  g.add(band2);
+  const heart = new THREE.Mesh(
+    sharedGeo('val-gift-heart', () => new THREE.ExtrudeGeometry(heartShape(0.45), { depth: 0.012, bevelEnabled: false })),
+    sharedMat('val-gift-heart', () => new THREE.MeshStandardMaterial({
+      color: '#c71585', roughness: 0.35, emissive: '#c71585', emissiveIntensity: 0.4,
+    })),
+  );
+  heart.position.set(0, 0.06, 0.01);
+  g.add(heart);
+  return g;
+}
+
+// Valentine's: glowing candle — pearl wax, emissive flame, shared glow
+// sprite. No PointLight: the spec wants candlelight via emissive + halo.
+function glowingCandle() {
+  const g = new THREE.Group();
+  const wax = new THREE.Mesh(
+    sharedGeo('val-candle-wax', () => new THREE.CylinderGeometry(0.035, 0.04, 0.14, 12)),
+    sharedMat('val-candle-wax', () => new THREE.MeshStandardMaterial({ color: '#fdf5e6', roughness: 0.5 })),
+  );
+  wax.position.y = 0.07;
+  g.add(wax);
+  const flame = new THREE.Mesh(
+    sharedGeo('val-candle-flame', () => new THREE.SphereGeometry(0.02, 10, 8)),
+    sharedMat('val-candle-flame', () => new THREE.MeshBasicMaterial({ color: '#ffb84d', toneMapped: false })),
+  );
+  flame.position.y = 0.17;
+  flame.scale.set(1, 1.6, 1);
+  g.add(flame);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.17;
+  glow.scale.setScalar(0.55);
+  g.add(glow);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -951,6 +1081,47 @@ export function createThemeDecorations(
       glow.position.set(x, y, z);
       glow.scale.setScalar(s);
       group.add(glow);
+    }
+  }
+
+  if (theme === 'valentine') {
+    // Floating heart balloons orbiting the carousel.
+    for (let i = 0; i < 6; i++) {
+      const b = heartBalloon();
+      const a = (i / 6) * Math.PI * 2;
+      add(b, 'orbit', { angle: a, radius: 2.6 + (i % 3) * 0.4, speed: 0.18 + (i % 3) * 0.08, y: 2.2 + (i % 3) * 0.9, wobble: 0.3 });
+    }
+    // Rose petals drifting around the scene.
+    for (let i = 0; i < 12; i++) {
+      const p = rosePetal();
+      const a = (i / 12) * Math.PI * 2 + 0.2;
+      const r = 2.0 + (i % 4) * 0.45;
+      p.position.set(Math.sin(a) * r, 0.8 + (i % 5) * 0.75, Math.cos(a) * r);
+      p.rotation.y = a;
+      add(p, 'sway');
+    }
+    // Cupid's arrows crossing high above the carousel.
+    for (let i = 0; i < 2; i++) {
+      const arrow = cupidsArrow();
+      const a = i * Math.PI + 0.4;
+      arrow.position.set(Math.sin(a) * 1.6, 4.3, Math.cos(a) * 1.6);
+      arrow.rotation.set(0, -a, i === 0 ? 0.5 : -0.5);
+      add(arrow, 'bob');
+    }
+    // Rose gift boxes on the base ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const box = roseGiftBox();
+      box.position.set(Math.sin(a) * 1.8, 0.06, Math.cos(a) * 1.8);
+      box.rotation.y = a;
+      add(box, 'bob');
+    }
+    // Glowing candles near the base (emissive + halo sprite, no light).
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 1.2;
+      const candle = glowingCandle();
+      candle.position.set(Math.sin(a) * 1.3, 0.0, Math.cos(a) * 1.3);
+      add(candle, 'bob');
     }
   }
 
