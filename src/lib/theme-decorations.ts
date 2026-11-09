@@ -2557,6 +2557,172 @@ function paperLantern() {
   return g;
 }
 
+// ---------------------------------------------------------------------------
+// Diwali: clay diya lamps, rangoli floor pattern, marigold garlands,
+// golden mandalas. No PointLight — flames read via emissive + the shared
+// additive glow sprite.
+// ---------------------------------------------------------------------------
+
+// Clay diya — lathe-turned terracotta bowl, oil, emissive flame + halo.
+function diyaLamp() {
+  const g = new THREE.Group();
+  const pts: THREE.Vector2[] = [
+    new THREE.Vector2(0, 0), new THREE.Vector2(0.06, 0),
+    new THREE.Vector2(0.1, 0.02), new THREE.Vector2(0.13, 0.06),
+    new THREE.Vector2(0.14, 0.09),
+  ];
+  const bowl = new THREE.Mesh(
+    sharedGeo('diwali-diya-bowl', () => new THREE.LatheGeometry(pts, 20)),
+    sharedMat('diwali-diya-clay', () => new THREE.MeshStandardMaterial({ color: '#a0522d', roughness: 0.8 })),
+  );
+  g.add(bowl);
+  const oil = new THREE.Mesh(
+    sharedGeo('diwali-diya-oil', () => new THREE.CircleGeometry(0.1, 16)),
+    sharedMat('diwali-diya-oil', () => new THREE.MeshStandardMaterial({
+      color: '#3a2408', roughness: 0.2, emissive: '#ff9933', emissiveIntensity: 0.35,
+    })),
+  );
+  oil.rotation.x = -Math.PI / 2;
+  oil.position.y = 0.055;
+  g.add(oil);
+  const flame = new THREE.Mesh(
+    sharedGeo('diwali-diya-flame', () => new THREE.SphereGeometry(0.025, 10, 8)),
+    sharedMat('diwali-diya-flame', () => new THREE.MeshStandardMaterial({
+      color: '#ff9933', emissive: '#ffaa22', emissiveIntensity: 1.6, roughness: 0.2,
+    })),
+  );
+  flame.scale.set(1, 1.9, 1);
+  flame.position.y = 0.11;
+  g.add(flame);
+  const core = new THREE.Mesh(
+    sharedGeo('diwali-diya-core', () => new THREE.SphereGeometry(0.012, 8, 6)),
+    sharedMat('diwali-diya-core', () => new THREE.MeshBasicMaterial({ color: '#ffee88' })),
+  );
+  core.scale.set(1, 1.9, 1);
+  core.position.y = 0.1;
+  g.add(core);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.12;
+  glow.scale.setScalar(0.5);
+  g.add(glow);
+  return g;
+}
+
+function rangoliTexture(): THREE.CanvasTexture {
+  return sharedTex('diwali-rangoli', () => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512;
+    const c = cv.getContext('2d')!;
+    c.clearRect(0, 0, 512, 512);
+    const cx = 256, cy = 256;
+    // Concentric bands: saffron, gold, magenta, sapphire.
+    const bands: [number, number, string][] = [
+      [250, 226, '#ff9933'], [226, 200, '#ffd700'], [200, 168, '#c71585'],
+      [168, 140, '#0f52ba'], [140, 108, '#ffd700'], [108, 78, '#ff9933'],
+    ];
+    for (const [r0, r1, col] of bands) {
+      c.fillStyle = col;
+      c.beginPath(); c.arc(cx, cy, r0, 0, Math.PI * 2); c.arc(cx, cy, r1, 0, Math.PI * 2, true); c.fill();
+    }
+    // 12 petals around the middle band (ellipse via scale + arc, so the
+    // jsdom canvas stub — which has no ellipse() — still works).
+    c.fillStyle = '#fff6e0';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      c.save();
+      c.translate(cx + Math.cos(a) * 184, cy + Math.sin(a) * 184);
+      c.rotate(a);
+      c.scale(26 / 12, 1);
+      c.beginPath(); c.arc(0, 0, 12, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+    // Dots on the outer band.
+    c.fillStyle = '#fff6e0';
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      c.beginPath(); c.arc(cx + Math.cos(a) * 238, cy + Math.sin(a) * 238, 6, 0, Math.PI * 2); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+// Ground rangoli — a flat ring around the base, drawn with the mandala
+// texture. Static (no floater): it lies on the ground plane.
+function rangoli() {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(
+    sharedGeo('diwali-rangoli-ring', () => new THREE.RingGeometry(1.9, 3.15, 48)),
+    sharedMat('diwali-rangoli', () => new THREE.MeshBasicMaterial({ map: rangoliTexture(), transparent: true, side: THREE.DoubleSide })),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.02;
+  g.add(ring);
+  return g;
+}
+
+// Marigold garland — a sagging swag of orange/yellow pom-poms with leaves,
+// hung from the canopy rim.
+function marigoldGarland() {
+  const g = new THREE.Group();
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(-0.45, 0, 0),
+    new THREE.Vector3(0, -0.28, 0),
+    new THREE.Vector3(0.45, 0, 0),
+  );
+  const stem = new THREE.Mesh(
+    sharedGeo('diwali-garland-stem', () => new THREE.TubeGeometry(curve, 10, 0.01, 6)),
+    sharedMat('diwali-garland-stem', () => new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.8 })),
+  );
+  g.add(stem);
+  const pomColors = ['#ff9933', '#ffd700'];
+  const leafMat = sharedMat('diwali-garland-leaf', () => new THREE.MeshStandardMaterial({ color: '#2e8b57', roughness: 0.7 }));
+  for (let i = 0; i < 9; i++) {
+    const p = curve.getPoint(i / 8);
+    const col = pomColors[i % 2];
+    const pom = new THREE.Mesh(sharedGeo('diwali-garland-pom', () => new THREE.SphereGeometry(0.05, 10, 8)),
+      sharedMat(`diwali-garland-pom-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.4,
+      })));
+    pom.position.copy(p);
+    pom.scale.y = 0.85;
+    g.add(pom);
+    if (i % 2 === 0) {
+      const leaf = new THREE.Mesh(sharedGeo('diwali-garland-leaf', () => new THREE.SphereGeometry(0.04, 8, 6)), leafMat);
+      leaf.position.set(p.x + 0.05, p.y + 0.03, p.z);
+      leaf.scale.set(1.5, 0.5, 0.8);
+      g.add(leaf);
+    }
+  }
+  return g;
+}
+
+// Golden mandala — radiating petals around a disc, gold emissive,
+// floating mid-air.
+function goldenMandala() {
+  const g = new THREE.Group();
+  const gold = sharedMat('diwali-mandala-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.65, emissive: '#ffd700', emissiveIntensity: 0.5,
+  }));
+  const disc = new THREE.Mesh(sharedGeo('diwali-mandala-disc', () => new THREE.CylinderGeometry(0.12, 0.12, 0.02, 20)), gold);
+  disc.rotation.x = Math.PI / 2;
+  g.add(disc);
+  const ring = new THREE.Mesh(sharedGeo('diwali-mandala-ring', () => new THREE.TorusGeometry(0.3, 0.015, 8, 32)), gold);
+  g.add(ring);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const petal = new THREE.Mesh(sharedGeo('diwali-mandala-petal', () => new THREE.SphereGeometry(0.07, 10, 8)), gold);
+    petal.position.set(Math.cos(a) * 0.21, Math.sin(a) * 0.21, 0);
+    petal.scale.set(1.4, 0.6, 0.35);
+    petal.rotation.z = a;
+    g.add(petal);
+  }
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(0.8);
+  g.add(glow);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -3321,6 +3487,37 @@ export function createThemeDecorations(
       c.position.set(Math.sin(a) * 3.6, 1.3 + i * 0.85, Math.cos(a) * 3.6);
       c.scale.setScalar(0.9 + (i % 3) * 0.25);
       add(c, 'orbitCloud', { angle: a, radius: 3.6, y: 1.3 + i * 0.85, speed: 0.05 + (i % 3) * 0.02 });
+    }
+  }
+
+  if (theme === 'diwali') {
+    // Diya lamps on the base ring.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      const d = diyaLamp();
+      d.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      d.rotation.y = a;
+      d.scale.setScalar(1.4);
+      add(d, 'bob');
+    }
+    // Rangoli on the ground around the base (static, no floater).
+    group.add(rangoli());
+    // Marigold garlands hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const garland = marigoldGarland();
+      garland.position.set(Math.sin(a) * 2.3, 4.55, Math.cos(a) * 2.3);
+      garland.rotation.y = -a + Math.PI / 2;
+      garland.scale.setScalar(1.3);
+      add(garland, 'sway');
+    }
+    // Golden mandalas floating mid-air.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 1.1;
+      const m = goldenMandala();
+      m.position.set(Math.sin(a) * 2.6, 2.2 + i * 0.8, Math.cos(a) * 2.6);
+      m.rotation.y = -a;
+      add(m, 'sway');
     }
   }
 
