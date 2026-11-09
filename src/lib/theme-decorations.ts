@@ -521,6 +521,195 @@ function dragon() {
   return g;
 }
 
+const NY_CONFETTI_COLORS = ['#d4af37', '#ff6ec7', '#7df9ff', '#e0e0e0', '#ff5e78'];
+
+// New Year: a single champagne flute — tapered glass bowl, gold liquid,
+// bubbles, thin stem. No light; the liquid reads via emissive.
+function champagneFlute() {
+  const g = new THREE.Group();
+  const glass = sharedMat('ny-glass', () => new THREE.MeshStandardMaterial({
+    color: '#e8f4f8', transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1,
+  }));
+  const gold = sharedMat('ny-gold-liquid', () => new THREE.MeshStandardMaterial({
+    color: '#d4af37', roughness: 0.25, metalness: 0.7,
+    emissive: '#ffd700', emissiveIntensity: 0.35,
+  }));
+  const bowl = new THREE.Mesh(
+    sharedGeo('ny-flute-bowl', () => new THREE.CylinderGeometry(0.035, 0.02, 0.14, 12)),
+    glass,
+  );
+  bowl.position.y = 0.17;
+  g.add(bowl);
+  const liquid = new THREE.Mesh(
+    sharedGeo('ny-flute-liquid', () => new THREE.CylinderGeometry(0.03, 0.018, 0.08, 12)),
+    gold,
+  );
+  liquid.position.y = 0.15;
+  g.add(liquid);
+  const bubbleMat = sharedMat('ny-bubble', () => new THREE.MeshBasicMaterial({ color: '#fff3c4' }));
+  for (let i = 0; i < 3; i++) {
+    const b = new THREE.Mesh(sharedGeo('ny-bubble', () => new THREE.SphereGeometry(0.004, 6, 6)), bubbleMat);
+    b.position.set((i - 1) * 0.012, 0.13 + i * 0.02, 0.01);
+    g.add(b);
+  }
+  const stem = new THREE.Mesh(
+    sharedGeo('ny-flute-stem', () => new THREE.CylinderGeometry(0.006, 0.006, 0.1, 8)),
+    sharedMat('ny-flute-stem', () => new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.3, metalness: 0.8 })),
+  );
+  stem.position.y = 0.05;
+  g.add(stem);
+  const foot = new THREE.Mesh(
+    sharedGeo('ny-flute-foot', () => new THREE.CylinderGeometry(0.03, 0.03, 0.008, 12)),
+    sharedMat('ny-flute-foot', () => new THREE.MeshStandardMaterial({ color: '#d4af37', roughness: 0.3, metalness: 0.8 })),
+  );
+  foot.position.y = 0.004;
+  g.add(foot);
+  return g;
+}
+
+// New Year: champagne tower — 3 tiers of flutes (3 + 2 + 1) on gold trays.
+function champagneTower() {
+  const g = new THREE.Group();
+  const trayMat = sharedMat('ny-tray', () => new THREE.MeshStandardMaterial({
+    color: '#d4af37', roughness: 0.25, metalness: 0.85,
+  }));
+  const tiers: { count: number; y: number; r: number }[] = [
+    { count: 3, y: 0.0, r: 0.11 },
+    { count: 2, y: 0.24, r: 0.07 },
+    { count: 1, y: 0.48, r: 0 },
+  ];
+  for (const tier of tiers) {
+    const tray = new THREE.Mesh(
+      sharedGeo(`ny-tray-${tier.count}`, () => new THREE.CylinderGeometry(tier.r + 0.06, tier.r + 0.06, 0.015, 20)),
+      trayMat,
+    );
+    tray.position.y = tier.y + 0.008;
+    g.add(tray);
+    for (let i = 0; i < tier.count; i++) {
+      const a = (i / tier.count) * Math.PI * 2;
+      const flute = champagneFlute();
+      flute.position.set(Math.sin(a) * tier.r, tier.y + 0.015, Math.cos(a) * tier.r);
+      g.add(flute);
+    }
+  }
+  return g;
+}
+
+// New Year: countdown clock — gold rim, canvas face, two hands, exposed gears.
+function countdownClock() {
+  const g = new THREE.Group();
+  const rim = new THREE.Mesh(
+    sharedGeo('ny-clock-rim', () => new THREE.TorusGeometry(0.2, 0.025, 10, 28)),
+    sharedMat('ny-clock-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4af37', roughness: 0.25, metalness: 0.85,
+    })),
+  );
+  g.add(rim);
+  const faceTex = sharedTex('ny-clock-face', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#f7ecd0'; c.beginPath(); c.arc(128, 128, 126, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#1a1a1a'; c.font = 'bold 44px sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('12', 128, 42); c.fillText('3', 214, 128);
+    c.fillText('6', 128, 214); c.fillText('9', 42, 128);
+    c.fillStyle = '#d4af37';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      c.beginPath(); c.arc(128 + Math.sin(a) * 108, 128 - Math.cos(a) * 108, 6, 0, Math.PI * 2); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+  const face = new THREE.Mesh(
+    sharedGeo('ny-clock-face', () => new THREE.CircleGeometry(0.2, 28)),
+    sharedMat('ny-clock-face', () => new THREE.MeshBasicMaterial({ map: faceTex })),
+  );
+  face.position.z = 0.005;
+  g.add(face);
+  const handMat = sharedMat('ny-clock-hand', () => new THREE.MeshBasicMaterial({ color: '#1a1a1a' }));
+  const hour = new THREE.Mesh(sharedGeo('ny-clock-hour', () => new THREE.BoxGeometry(0.015, 0.1, 0.005)), handMat);
+  hour.position.set(-0.03, 0.04, 0.01); hour.rotation.z = 0.6;
+  g.add(hour);
+  const minute = new THREE.Mesh(sharedGeo('ny-clock-minute', () => new THREE.BoxGeometry(0.012, 0.16, 0.005)), handMat);
+  minute.position.set(0.02, 0.07, 0.01); minute.rotation.z = -0.25;
+  g.add(minute);
+  // Two exposed gears below the face.
+  const gearMat = sharedMat('ny-gear', () => new THREE.MeshStandardMaterial({
+    color: '#e0e0e0', roughness: 0.3, metalness: 0.9,
+  }));
+  for (let i = 0; i < 2; i++) {
+    const gear = new THREE.Group();
+    const disc = new THREE.Mesh(
+      sharedGeo('ny-gear-disc', () => new THREE.CylinderGeometry(0.06, 0.06, 0.015, 16)),
+      gearMat,
+    );
+    disc.rotation.x = Math.PI / 2;
+    gear.add(disc);
+    for (let t = 0; t < 8; t++) {
+      const a = (t / 8) * Math.PI * 2;
+      const tooth = new THREE.Mesh(sharedGeo('ny-gear-tooth', () => new THREE.BoxGeometry(0.02, 0.02, 0.015)), gearMat);
+      tooth.position.set(Math.sin(a) * 0.065, Math.cos(a) * 0.065, 0);
+      gear.add(tooth);
+    }
+    gear.position.set(-0.09 + i * 0.18, -0.28, 0.01);
+    gear.rotation.z = i * 0.4;
+    g.add(gear);
+  }
+  return g;
+}
+
+// New Year: star balloon — extruded 5-point star, gold metallic, with string.
+function starBalloon() {
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.16 : 0.065;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.sin(a) * r;
+    const y = Math.cos(a) * r;
+    if (i === 0) shape.moveTo(x, y); else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  const star = new THREE.Mesh(
+    sharedGeo('ny-star', () => new THREE.ExtrudeGeometry(shape, { depth: 0.02, bevelEnabled: false })),
+    sharedMat('ny-star', () => new THREE.MeshStandardMaterial({
+      color: '#d4af37', roughness: 0.2, metalness: 0.85,
+      emissive: '#ffd700', emissiveIntensity: 0.4,
+    })),
+  );
+  g.add(star);
+  const string = new THREE.Mesh(
+    sharedGeo('ny-balloon-string', () => new THREE.CylinderGeometry(0.003, 0.003, 0.3, 6)),
+    sharedMat('ny-balloon-string', () => new THREE.MeshStandardMaterial({ color: '#e0e0e0', roughness: 0.6 })),
+  );
+  string.position.set(0, -0.3, 0.01);
+  g.add(string);
+  return g;
+}
+
+// New Year: party confetti — a loose burst of tiny colored planes.
+function partyConfetti() {
+  const g = new THREE.Group();
+  for (let i = 0; i < 14; i++) {
+    const col = NY_CONFETTI_COLORS[i % NY_CONFETTI_COLORS.length];
+    const piece = new THREE.Mesh(
+      sharedGeo('ny-confetti', () => new THREE.PlaneGeometry(0.035, 0.05)),
+      sharedMat(`ny-confetti-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, side: THREE.DoubleSide, roughness: 0.4,
+        emissive: col, emissiveIntensity: 0.25,
+      })),
+    );
+    const a = Math.random() * Math.PI * 2;
+    const r = Math.random() * 0.16;
+    piece.position.set(Math.sin(a) * r, (Math.random() - 0.5) * 0.2, Math.cos(a) * r);
+    piece.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+    g.add(piece);
+  }
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -720,6 +909,49 @@ export function createThemeDecorations(
     dr.position.set(Math.sin(dragonAngle) * 3.4, 4.4, Math.cos(dragonAngle) * 3.4);
     dr.rotation.y = Math.PI / 2 + dragonAngle;
     add(dr, 'orbit', { angle: dragonAngle, radius: 3.4, y: 4.4, speed: 0.1, heading: 'tangent' });
+  }
+
+  if (theme === 'new-year') {
+    // Champagne tower on the base.
+    const tower = champagneTower();
+    tower.position.set(1.4, 0.0, -1.0);
+    tower.rotation.y = 0.6;
+    add(tower, 'bob');
+    // Countdown clocks flanking the carousel at mid height.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.7;
+      const clock = countdownClock();
+      clock.position.set(Math.sin(a) * 2.6, 3.1, Math.cos(a) * 2.6);
+      clock.rotation.y = -a;
+      add(clock, 'sway');
+    }
+    // Star balloons orbiting the carousel.
+    for (let i = 0; i < 6; i++) {
+      const b = starBalloon();
+      const a = (i / 6) * Math.PI * 2;
+      add(b, 'orbit', { angle: a, radius: 2.6 + (i % 3) * 0.4, speed: 0.2 + (i % 3) * 0.1, y: 2.2 + (i % 3) * 0.9, wobble: 0.3 });
+    }
+    // Party confetti bursts drifting mid-air.
+    for (let i = 0; i < 3; i++) {
+      const c = partyConfetti();
+      const a = (i / 3) * Math.PI * 2 + 1.1;
+      c.position.set(Math.sin(a) * 3.0, 1.6 + i * 1.1, Math.cos(a) * 3.0);
+      add(c, 'bob');
+    }
+    // Champagne flutes standing on the base ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.3;
+      const flute = champagneFlute();
+      flute.position.set(Math.sin(a) * 1.8, 0.0, Math.cos(a) * 1.8);
+      add(flute, 'bob');
+    }
+    // Gold glow sprites over the tower and clocks (shared, no PointLight).
+    for (const [x, y, z, s] of [[1.4, 0.7, -1.0, 1.1], [-2.6, 3.1, 0, 0.9], [2.6, 3.1, 0, 0.9]] as const) {
+      const glow = new THREE.Sprite(getGlowMaterial());
+      glow.position.set(x, y, z);
+      glow.scale.setScalar(s);
+      group.add(glow);
+    }
   }
 
   // Collect per-layer disposables: geometries / materials / textures owned
