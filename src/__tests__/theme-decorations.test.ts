@@ -32,7 +32,7 @@ function countLights(group: THREE.Group) {
 // and survive a few update frames + dispose. Default builds an empty layer.
 const DECORATED: ThemeId[] = [
   'halloween', 'christmas', 'spring-festival', 'new-year', 'valentine',
-  'carnival', 'st-patrick', 'april-fools', 'easter', 'mothers-day',
+  'carnival', 'st-patrick', 'april-fools', 'easter', 'mothers-day', 'dragon-boat',
 ];
 // Halloween predates the light budget (6 pumpkins + 5 ghosts each carry a
 // PointLight = 11); every theme built since keeps to ≤ 3.

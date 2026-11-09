@@ -1996,6 +1996,289 @@ function pearlNecklace() {
   return g;
 }
 
+// Dragon Boat: dragon boat — vermilion hull (side-profile extrusion with
+// upturned bow/stern), dragon head at the bow, tail at the stern, drum,
+// two flags. The boat from the spec; unrelated to the deleted Spring
+// Festival idle dragon.
+function dragonBoat() {
+  const g = new THREE.Group();
+  const red = sharedMat('db-hull', () => new THREE.MeshStandardMaterial({
+    color: '#b22222', roughness: 0.5, emissive: '#b22222', emissiveIntensity: 0.12,
+  }));
+  const gold = sharedMat('db-gold', () => new THREE.MeshStandardMaterial({
+    color: '#d4a24a', roughness: 0.3, metalness: 0.8,
+  }));
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-0.5, 0);
+  hullShape.lineTo(0.5, 0);
+  hullShape.quadraticCurveTo(0.62, 0.08, 0.56, 0.24);
+  hullShape.lineTo(-0.56, 0.24);
+  hullShape.quadraticCurveTo(-0.62, 0.08, -0.5, 0);
+  const hull = new THREE.Mesh(
+    sharedGeo('db-hull', () => new THREE.ExtrudeGeometry(hullShape, { depth: 0.2, bevelEnabled: false })),
+    red,
+  );
+  hull.position.z = -0.1;
+  g.add(hull);
+  const rim = new THREE.Mesh(
+    sharedGeo('db-hull-rim', () => new THREE.BoxGeometry(1.1, 0.025, 0.21)),
+    gold,
+  );
+  rim.position.y = 0.24;
+  g.add(rim);
+  // Dragon head at the bow (+x): red head, gold horns, snout, whiskers.
+  const head = new THREE.Group();
+  head.position.set(0.58, 0.3, 0);
+  const skull = new THREE.Mesh(
+    sharedGeo('db-head', () => new THREE.SphereGeometry(0.085, 12, 10)),
+    red,
+  );
+  skull.scale.set(1.25, 0.9, 0.8);
+  head.add(skull);
+  const snout = new THREE.Mesh(
+    sharedGeo('db-snout', () => new THREE.ConeGeometry(0.045, 0.13, 10)),
+    gold,
+  );
+  snout.rotation.z = -Math.PI / 2;
+  snout.position.set(0.13, -0.01, 0);
+  head.add(snout);
+  for (const side of [-1, 1]) {
+    const horn = new THREE.Mesh(
+      sharedGeo('db-horn', () => new THREE.ConeGeometry(0.018, 0.12, 8)),
+      gold,
+    );
+    horn.position.set(-0.05, 0.08, side * 0.04);
+    horn.rotation.z = 0.9;
+    head.add(horn);
+    const eye = new THREE.Mesh(
+      sharedGeo('db-eye', () => new THREE.SphereGeometry(0.018, 8, 6)),
+      sharedMat('db-eye', () => new THREE.MeshBasicMaterial({ color: '#fff8e0' })),
+    );
+    eye.position.set(0.05, 0.03, side * 0.055);
+    head.add(eye);
+    const whisker = new THREE.Mesh(
+      sharedGeo('db-whisker', () => new THREE.CylinderGeometry(0.003, 0.003, 0.14, 6)),
+      gold,
+    );
+    whisker.position.set(0.12, -0.04, side * 0.05);
+    whisker.rotation.set(side * 0.5, 0, Math.PI / 2 - 0.3);
+    head.add(whisker);
+  }
+  for (let i = 0; i < 3; i++) {
+    const mane = new THREE.Mesh(
+      sharedGeo('db-mane', () => new THREE.ConeGeometry(0.02, 0.09, 6)),
+      sharedMat('db-mane', () => new THREE.MeshStandardMaterial({
+        color: '#ff6b6b', roughness: 0.5, emissive: '#ff6b6b', emissiveIntensity: 0.3,
+      })),
+    );
+    mane.position.set(-0.09 - i * 0.03, 0.06 - i * 0.01, 0);
+    mane.rotation.z = 0.7 + i * 0.2;
+    head.add(mane);
+  }
+  g.add(head);
+  // Tail fin sweeping up at the stern.
+  const tail = new THREE.Mesh(
+    sharedGeo('db-tail', () => new THREE.ConeGeometry(0.05, 0.24, 8)),
+    gold,
+  );
+  tail.position.set(-0.6, 0.32, 0);
+  tail.rotation.z = 0.8;
+  g.add(tail);
+  // Drum amidships.
+  const drum = new THREE.Mesh(
+    sharedGeo('db-drum', () => new THREE.CylinderGeometry(0.07, 0.07, 0.09, 14)),
+    red,
+  );
+  drum.position.set(0.08, 0.29, 0);
+  g.add(drum);
+  const drumTop = new THREE.Mesh(
+    sharedGeo('db-drum-top', () => new THREE.CylinderGeometry(0.065, 0.065, 0.012, 14)),
+    sharedMat('db-drum-top', () => new THREE.MeshStandardMaterial({ color: '#eef4e6', roughness: 0.6 })),
+  );
+  drumTop.position.set(0.08, 0.34, 0);
+  g.add(drumTop);
+  // Two pennant flags.
+  const flagColors = ['#47885e', '#f0c24b'];
+  for (let i = 0; i < 2; i++) {
+    const pole = new THREE.Mesh(
+      sharedGeo('db-flag-pole', () => new THREE.CylinderGeometry(0.005, 0.005, 0.26, 6)),
+      gold,
+    );
+    pole.position.set(-0.3 + i * 0.6, 0.37, 0);
+    g.add(pole);
+    const flagShape = new THREE.Shape();
+    flagShape.moveTo(0, 0);
+    flagShape.lineTo(0.11, -0.025);
+    flagShape.lineTo(0, -0.05);
+    flagShape.closePath();
+    const flag = new THREE.Mesh(
+      sharedGeo('db-flag', () => new THREE.ShapeGeometry(flagShape)),
+      sharedMat(`db-flag-${i}`, () => new THREE.MeshStandardMaterial({
+        color: flagColors[i]!, roughness: 0.6, side: THREE.DoubleSide,
+      })),
+    );
+    flag.position.set(-0.3 + i * 0.6, 0.5, 0);
+    g.add(flag);
+  }
+  return g;
+}
+
+// Dragon Boat: zongzi — bamboo-green pyramid tied with a gold string.
+function zongzi() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('db-zongzi', () => new THREE.ConeGeometry(0.1, 0.18, 4)),
+    sharedMat('db-zongzi', () => new THREE.MeshStandardMaterial({
+      color: '#47885e', roughness: 0.6, emissive: '#47885e', emissiveIntensity: 0.1,
+    })),
+  );
+  body.rotation.y = Math.PI / 4;
+  body.position.y = 0.09;
+  g.add(body);
+  const band = new THREE.Mesh(
+    sharedGeo('db-zongzi-band', () => new THREE.TorusGeometry(0.082, 0.006, 6, 12)),
+    sharedMat('db-zongzi-band', () => new THREE.MeshStandardMaterial({
+      color: '#f0c24b', roughness: 0.4,
+    })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.09;
+  g.add(band);
+  const tip = new THREE.Mesh(
+    sharedGeo('db-zongzi-tip', () => new THREE.ConeGeometry(0.02, 0.06, 6)),
+    sharedMat('db-zongzi-tip', () => new THREE.MeshStandardMaterial({ color: '#2f6b43', roughness: 0.6 })),
+  );
+  tip.position.y = 0.2;
+  g.add(tip);
+  return g;
+}
+
+// Dragon Boat: five-color cord — hanging string with five beads
+// (red / yellow / blue / white / green) and a gold tassel.
+function fiveColorCord() {
+  const g = new THREE.Group();
+  const string = new THREE.Mesh(
+    sharedGeo('db-cord-string', () => new THREE.CylinderGeometry(0.004, 0.004, 0.36, 6)),
+    sharedMat('db-cord-string', () => new THREE.MeshStandardMaterial({ color: '#eef4e6', roughness: 0.7 })),
+  );
+  g.add(string);
+  const colors = ['#b22222', '#f0c24b', '#20b2aa', '#f5f5f5', '#47885e'];
+  for (let i = 0; i < 5; i++) {
+    const bead = new THREE.Mesh(
+      sharedGeo('db-cord-bead', () => new THREE.SphereGeometry(0.024, 10, 8)),
+      sharedMat(`db-cord-bead-${i}`, () => new THREE.MeshStandardMaterial({
+        color: colors[i]!, roughness: 0.4,
+      })),
+    );
+    bead.position.y = 0.1 - i * 0.055;
+    g.add(bead);
+  }
+  const tassel = new THREE.Mesh(
+    sharedGeo('db-cord-tassel', () => new THREE.ConeGeometry(0.02, 0.09, 8)),
+    sharedMat('db-cord-tassel', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.35, metalness: 0.6,
+    })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.22;
+  g.add(tassel);
+  return g;
+}
+
+// Dragon Boat: mugwort & calamus sprig — long green blades tied with a
+// red band.
+function mugwortSprig() {
+  const g = new THREE.Group();
+  const leafMat = sharedMat('db-mugwort', () => new THREE.MeshStandardMaterial({
+    color: '#47885e', roughness: 0.7,
+  }));
+  const reedMat = sharedMat('db-calamus', () => new THREE.MeshStandardMaterial({
+    color: '#7fb069', roughness: 0.7,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    const blade = new THREE.Mesh(
+      sharedGeo('db-mugwort-blade', () => new THREE.ConeGeometry(0.022, 0.3, 6)),
+      leafMat,
+    );
+    blade.position.set(Math.sin(a) * 0.04, 0.15, Math.cos(a) * 0.04);
+    blade.rotation.set(Math.cos(a) * 0.3, 0, Math.sin(a) * -0.3);
+    blade.scale.z = 0.4;
+    g.add(blade);
+  }
+  for (let i = 0; i < 2; i++) {
+    const a = i * Math.PI + 0.9;
+    const reed = new THREE.Mesh(
+      sharedGeo('db-calamus-blade', () => new THREE.ConeGeometry(0.012, 0.4, 6)),
+      reedMat,
+    );
+    reed.position.set(Math.sin(a) * 0.02, 0.2, Math.cos(a) * 0.02);
+    reed.rotation.set(Math.cos(a) * 0.15, 0, Math.sin(a) * -0.15);
+    reed.scale.z = 0.35;
+    g.add(reed);
+  }
+  const band = new THREE.Mesh(
+    sharedGeo('db-sprig-band', () => new THREE.TorusGeometry(0.05, 0.008, 6, 12)),
+    sharedMat('db-sprig-band', () => new THREE.MeshStandardMaterial({
+      color: '#b22222', roughness: 0.5,
+    })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.08;
+  g.add(band);
+  return g;
+}
+
+// Dragon Boat: sachet — vermilion silk pouch, gold neck, tassel, gold emblem.
+function sachet() {
+  const g = new THREE.Group();
+  const silk = sharedMat('db-sachet', () => new THREE.MeshStandardMaterial({
+    color: '#b22222', roughness: 0.45, emissive: '#b22222', emissiveIntensity: 0.2,
+  }));
+  const pouch = new THREE.Mesh(
+    sharedGeo('db-sachet-pouch', () => new THREE.SphereGeometry(0.09, 14, 10)),
+    silk,
+  );
+  pouch.scale.set(1, 1.15, 0.75);
+  g.add(pouch);
+  const neck = new THREE.Mesh(
+    sharedGeo('db-sachet-neck', () => new THREE.CylinderGeometry(0.03, 0.04, 0.04, 10)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  neck.position.y = 0.11;
+  g.add(neck);
+  const drawstring = new THREE.Mesh(
+    sharedGeo('db-sachet-string', () => new THREE.TorusGeometry(0.035, 0.006, 6, 12)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  drawstring.rotation.x = Math.PI / 2;
+  drawstring.position.y = 0.09;
+  g.add(drawstring);
+  const emblem = new THREE.Mesh(
+    sharedGeo('db-sachet-emblem', () => new THREE.SphereGeometry(0.025, 10, 8)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  emblem.position.set(0, 0.01, 0.068);
+  emblem.scale.z = 0.4;
+  g.add(emblem);
+  const tassel = new THREE.Mesh(
+    sharedGeo('db-sachet-tassel', () => new THREE.ConeGeometry(0.018, 0.08, 8)),
+    sharedMat('db-sachet-tassel', () => new THREE.MeshStandardMaterial({
+      color: '#f0c24b', roughness: 0.5,
+    })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.14;
+  g.add(tassel);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2632,6 +2915,62 @@ export function createThemeDecorations(
     necklaceHigh.rotation.y = -0.6;
     necklaceHigh.scale.setScalar(1.2);
     add(necklaceHigh, 'sway');
+  }
+
+  if (theme === 'dragon-boat') {
+    // Dragon boats on the base — one hero boat in front, a smaller one behind.
+    // Scaled up so the hull and dragon head read past the horses.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.6;
+      const boat = dragonBoat();
+      boat.position.set(Math.sin(a) * 1.5, 0.0, Math.cos(a) * 1.5);
+      boat.rotation.y = -a + Math.PI / 2;
+      boat.scale.setScalar(i === 0 ? 1.25 : 1.1);
+      add(boat, 'bob');
+    }
+    // Zongzi on the base ring.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.2;
+      const z = zongzi();
+      z.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      z.rotation.y = a;
+      z.scale.setScalar(1.3);
+      add(z, 'bob');
+    }
+    // Five-color cords hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.7;
+      const cord = fiveColorCord();
+      cord.position.set(Math.sin(a) * 2.3, 3.9, Math.cos(a) * 2.3);
+      cord.scale.setScalar(1.5);
+      add(cord, 'sway');
+    }
+    // Mugwort & calamus sprigs on the base.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 1.1;
+      const sprig = mugwortSprig();
+      sprig.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      sprig.rotation.y = a;
+      sprig.scale.setScalar(1.2);
+      add(sprig, 'bob');
+    }
+    // Sachets — two on the base, two floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.9;
+      const s = sachet();
+      s.position.set(Math.sin(a) * 1.4, 0.12, Math.cos(a) * 1.4);
+      s.rotation.y = -a;
+      s.scale.setScalar(1.3);
+      add(s, 'bob');
+    }
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.8;
+      const s = sachet();
+      s.position.set(Math.sin(a) * 2.5, 2.4 + i * 0.8, Math.cos(a) * 2.5);
+      s.rotation.y = -a;
+      s.scale.setScalar(1.3);
+      add(s, 'sway');
+    }
   }
 
   // Collect per-layer disposables: geometries / materials / textures owned
