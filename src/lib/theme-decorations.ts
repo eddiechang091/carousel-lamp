@@ -530,9 +530,11 @@ function dragon() {
     seg.scale.set(1, 0.9, 1.15);
     g.add(seg);
   }
+  // Head: bigger than the body segments and gold, so it reads as a head
+  // from across the scene instead of one more red bead.
   const head = new THREE.Mesh(
-    sharedGeo('dragon-head', () => new THREE.SphereGeometry(0.14, 16, 12)),
-    bodyMat,
+    sharedGeo('dragon-head', () => new THREE.SphereGeometry(0.2, 16, 12)),
+    goldMat,
   );
   head.position.set(0, 0.02, 0.05);
   g.add(head);
@@ -866,9 +868,13 @@ export function createThemeDecorations(
     }
     // Re-park everything at its off-stage start (defensive: a layer only
     // enters once, but the timeline's fromTo re-asserts the same values).
+    // Idle-only floaters (the dragon) get scale 1: no wave tween ever
+    // restores them, so parking them at scaleFrom would shrink them for
+    // the whole session (caught by the intro-v2 frame check: the dragon
+    // read as a bead necklace at 0.55 scale).
     floaters.forEach(f => {
       f.obj.position.set(f.from.x, f.from.y, f.from.z);
-      f.obj.scale.setScalar(f.scaleFrom ?? 0.55);
+      f.obj.scale.setScalar(f.entrance ? (f.scaleFrom ?? 0.55) : 1);
     });
     if (signature.kind === 'sleigh') signature.group.visible = false;
     if (signature.kind === 'dragon') {

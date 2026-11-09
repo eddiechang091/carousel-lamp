@@ -201,6 +201,22 @@ describe('buildIntroTimeline', () => {
     expect(onIntroEnd).toHaveBeenCalledTimes(1);
   });
 
+  it('full mode reveals the sleigh for the fly-past, then hides it again', () => {
+    const plan = fullPlan();
+    const sleigh = new THREE.Group();
+    sleigh.visible = false; // enter() parks it hidden; the timeline must reveal it
+    plan.signature = { kind: 'sleigh', group: sleigh, drive: sleighDrivePose, hideAtEnd: true };
+    const { rig } = mockRig();
+    const tl = buildIntroTimeline(plan, rig, 'full', true)!;
+    tl.pause();
+    tl.time(0.5);
+    expect(sleigh.visible).toBe(false);
+    tl.time(1.0);
+    expect(sleigh.visible).toBe(true);
+    tl.time(2.0);
+    expect(sleigh.visible).toBe(false);
+  });
+
   it('short mode lasts 2s and skips the signature flight', () => {
     const plan = fullPlan();
     const sleigh = new THREE.Group();

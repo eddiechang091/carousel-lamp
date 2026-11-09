@@ -288,6 +288,10 @@ export function buildIntroTimeline(
     const proxy = { p: 0 };
     const out: DriveOut = { pos: { x: 0, y: 0, z: 0 }, rotY: 0 };
     const dur = actor.kind === 'dragon' ? 1.6 : 1.0;
+    // The sleigh starts hidden (enter() parks it invisible); reveal it
+    // exactly when the fly-past starts — without this the whole arc flies
+    // invisible (caught by the intro-v2 frame check).
+    tl.set(actor.group, { visible: true }, 's2_surprise');
     tl.fromTo(proxy, { p: 0 }, {
       p: 1, duration: dur, ease: 'power1.inOut',
       onUpdate: () => {
