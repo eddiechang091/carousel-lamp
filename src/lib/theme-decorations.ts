@@ -1200,6 +1200,157 @@ function streamerRibbon() {
   return g;
 }
 
+// St. Patrick's: shamrock — 3 (or 4) heart-shaped leaves around a stem.
+// Reuses the Valentine's heart shape: a shamrock leaf is heart-shaped.
+function shamrock(leaves = 3) {
+  const g = new THREE.Group();
+  const leafMat = sharedMat('sp-leaf', () => new THREE.MeshStandardMaterial({
+    color: '#50c878', roughness: 0.5, emissive: '#009a49', emissiveIntensity: 0.2,
+    side: THREE.DoubleSide,
+  }));
+  for (let i = 0; i < leaves; i++) {
+    const a = (i / leaves) * Math.PI * 2;
+    const leaf = new THREE.Mesh(
+      sharedGeo('sp-leaf', () => new THREE.ExtrudeGeometry(heartShape(0.7), { depth: 0.008, bevelEnabled: false })),
+      leafMat,
+    );
+    leaf.position.set(Math.sin(a) * 0.055, Math.cos(a) * 0.055, 0);
+    leaf.rotation.z = a + Math.PI;
+    g.add(leaf);
+  }
+  const center = new THREE.Mesh(
+    sharedGeo('sp-leaf-center', () => new THREE.SphereGeometry(0.02, 8, 6)),
+    sharedMat('sp-leaf-center', () => new THREE.MeshStandardMaterial({ color: '#ffd700', roughness: 0.3, metalness: 0.7 })),
+  );
+  g.add(center);
+  const stem = new THREE.Mesh(
+    sharedGeo('sp-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.16, 6)),
+    sharedMat('sp-stem', () => new THREE.MeshStandardMaterial({ color: '#009a49', roughness: 0.6 })),
+  );
+  stem.position.set(0.02, -0.14, 0);
+  stem.rotation.z = 0.25;
+  g.add(stem);
+  return g;
+}
+
+// St. Patrick's: pot of gold — black cauldron, gold rim, coins spilling,
+// shared glow sprite on top. No PointLight; the coins read via emissive.
+function potOfGold() {
+  const g = new THREE.Group();
+  const pot = new THREE.Mesh(
+    sharedGeo('sp-pot', () => new THREE.CylinderGeometry(0.17, 0.11, 0.2, 18)),
+    sharedMat('sp-pot', () => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.35, metalness: 0.6 })),
+  );
+  pot.position.y = 0.1;
+  g.add(pot);
+  const rim = new THREE.Mesh(
+    sharedGeo('sp-pot-rim', () => new THREE.TorusGeometry(0.17, 0.015, 8, 20)),
+    sharedMat('sp-pot-gold', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.25, metalness: 0.85,
+      emissive: '#ffd700', emissiveIntensity: 0.4,
+    })),
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.2;
+  g.add(rim);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const coin = new THREE.Mesh(
+      sharedGeo('sp-coin', () => new THREE.CylinderGeometry(0.035, 0.035, 0.012, 12)),
+      sharedMat('sp-coin', () => new THREE.MeshStandardMaterial({
+        color: '#ffd700', roughness: 0.25, metalness: 0.85,
+        emissive: '#ffd700', emissiveIntensity: 0.5,
+      })),
+    );
+    coin.position.set(Math.sin(a) * 0.07, 0.21 + (i % 2) * 0.015, Math.cos(a) * 0.07);
+    coin.rotation.y = a;
+    g.add(coin);
+  }
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.3;
+  glow.scale.setScalar(0.7);
+  g.add(glow);
+  return g;
+}
+
+// St. Patrick's: leprechaun hat — green top hat, black band, gold buckle.
+function leprechaunHat() {
+  const g = new THREE.Group();
+  const green = sharedMat('sp-hat-green', () => new THREE.MeshStandardMaterial({
+    color: '#009a49', roughness: 0.55, emissive: '#009a49', emissiveIntensity: 0.15,
+  }));
+  const brim = new THREE.Mesh(
+    sharedGeo('sp-hat-brim', () => new THREE.CylinderGeometry(0.17, 0.17, 0.02, 20)),
+    green,
+  );
+  brim.position.y = 0.01;
+  g.add(brim);
+  const crown = new THREE.Mesh(
+    sharedGeo('sp-hat-crown', () => new THREE.CylinderGeometry(0.095, 0.1, 0.17, 16)),
+    green,
+  );
+  crown.position.y = 0.105;
+  g.add(crown);
+  const band = new THREE.Mesh(
+    sharedGeo('sp-hat-band', () => new THREE.CylinderGeometry(0.102, 0.102, 0.04, 16)),
+    sharedMat('sp-hat-band', () => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.5 })),
+  );
+  band.position.y = 0.05;
+  g.add(band);
+  const buckle = new THREE.Mesh(
+    sharedGeo('sp-hat-buckle', () => new THREE.BoxGeometry(0.05, 0.035, 0.012)),
+    sharedMat('sp-hat-buckle', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.25, metalness: 0.85,
+    })),
+  );
+  buckle.position.set(0, 0.05, 0.1);
+  g.add(buckle);
+  return g;
+}
+
+// St. Patrick's: rainbow — six concentric half-torus arcs.
+function rainbow() {
+  const g = new THREE.Group();
+  const colors = ['#ff0000', '#ff7f00', '#ffeb3b', '#50c878', '#1982c4', '#9c27b0'];
+  for (let i = 0; i < 6; i++) {
+    const arc = new THREE.Mesh(
+      sharedGeo(`sp-rainbow-${i}`, () => new THREE.TorusGeometry(0.55 + i * 0.06, 0.028, 8, 32, Math.PI)),
+      sharedMat(`sp-rainbow-${colors[i]}`, () => new THREE.MeshStandardMaterial({
+        color: colors[i], roughness: 0.5,
+        emissive: colors[i], emissiveIntensity: 0.45,
+      })),
+    );
+    g.add(arc);
+  }
+  return g;
+}
+
+// St. Patrick's: stout glass — dark stout with a cream foam head.
+function stoutGlass() {
+  const g = new THREE.Group();
+  const glass = new THREE.Mesh(
+    sharedGeo('sp-stout-glass', () => new THREE.CylinderGeometry(0.05, 0.04, 0.2, 12)),
+    sharedMat('sp-stout-glass', () => new THREE.MeshStandardMaterial({
+      color: '#2a1508', transparent: true, opacity: 0.9, roughness: 0.25,
+    })),
+  );
+  glass.position.y = 0.1;
+  g.add(glass);
+  const foam = new THREE.Mesh(
+    sharedGeo('sp-stout-foam', () => new THREE.CylinderGeometry(0.05, 0.05, 0.04, 12)),
+    sharedMat('sp-stout-foam', () => new THREE.MeshStandardMaterial({ color: '#f5eeda', roughness: 0.9 })),
+  );
+  foam.position.y = 0.21;
+  g.add(foam);
+  const foot = new THREE.Mesh(
+    sharedGeo('sp-stout-foot', () => new THREE.CylinderGeometry(0.045, 0.045, 0.01, 12)),
+    sharedMat('sp-stout-foot', () => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.4 })),
+  );
+  foot.position.y = 0.005;
+  g.add(foot);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -1630,6 +1781,52 @@ export function createThemeDecorations(
     points.name = 'carnival-glitter';
     group.add(points);
     snowPoints.push({ points, material: mat });
+  }
+
+  if (theme === 'st-patrick') {
+    // Shamrocks drifting around the carousel.
+    for (let i = 0; i < 6; i++) {
+      const s = shamrock(3);
+      const a = (i / 6) * Math.PI * 2 + 0.4;
+      s.position.set(Math.sin(a) * 2.6, 1.4 + (i % 3) * 1.1, Math.cos(a) * 2.6);
+      s.rotation.y = -a;
+      add(s, 'sway');
+    }
+    // Lucky four-leaf clovers on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.1;
+      const c = shamrock(4);
+      c.position.set(Math.sin(a) * 1.5, 0.25, Math.cos(a) * 1.5);
+      c.rotation.y = -a;
+      c.scale.setScalar(1.2);
+      add(c, 'bob');
+    }
+    // Pot of gold on the base.
+    const pot = potOfGold();
+    pot.position.set(1.2, 0.0, -1.2);
+    pot.rotation.y = 0.5;
+    add(pot, 'bob');
+    // Leprechaun hats on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.4;
+      const h = leprechaunHat();
+      h.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      h.rotation.y = -a;
+      add(h, 'bob');
+    }
+    // Rainbow arcing high behind the carousel — it must crest above the
+    // roof peak (y 6.35) or the canopy hides it entirely from the front.
+    const rb = rainbow();
+    rb.position.set(0, 6.0, -2.2);
+    rb.scale.setScalar(1.8);
+    add(rb, 'sway');
+    // Stout glasses on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.7;
+      const st = stoutGlass();
+      st.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      add(st, 'bob');
+    }
   }
 
   // Collect per-layer disposables: geometries / materials / textures owned
