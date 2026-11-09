@@ -467,60 +467,6 @@ function cloud() {
   return g;
 }
 
-// Lunar dragon: a short snake — head + 8 trailing segments along local -z,
-// facing +z. No PointLight (emissive only). It slow-orbits the carousel top
-// like the bats.
-function dragon() {
-  const g = new THREE.Group();
-  const bodyMat = sharedMat('dragon-body', () => new THREE.MeshStandardMaterial({
-    color: '#c81e2b', roughness: 0.4, emissive: '#ff5a3c', emissiveIntensity: 0.55,
-  }));
-  const goldMat = sharedMat('dragon-gold', () => new THREE.MeshStandardMaterial({
-    color: '#f0c75e', roughness: 0.3, metalness: 0.6,
-    emissive: '#ffbf40', emissiveIntensity: 0.4,
-  }));
-  for (let i = 0; i < 8; i++) {
-    const r = 0.11 - i * 0.008;
-    const seg = new THREE.Mesh(
-      sharedGeo(`dragon-seg-${i}`, () => new THREE.SphereGeometry(r, 12, 10)),
-      bodyMat,
-    );
-    seg.position.set(Math.sin(i * 0.6) * 0.04, Math.sin(i * 0.9) * 0.05, -0.14 - i * 0.17);
-    seg.scale.set(1, 0.9, 1.15);
-    g.add(seg);
-  }
-  // Head: bigger than the body segments and gold, so it reads as a head
-  // from across the scene instead of one more red bead.
-  const head = new THREE.Mesh(
-    sharedGeo('dragon-head', () => new THREE.SphereGeometry(0.2, 16, 12)),
-    goldMat,
-  );
-  head.position.set(0, 0.02, 0.05);
-  g.add(head);
-  const snout = new THREE.Mesh(
-    sharedGeo('dragon-snout', () => new THREE.SphereGeometry(0.08, 12, 10)),
-    bodyMat,
-  );
-  snout.position.set(0, 0, 0.17);
-  snout.scale.set(1, 0.8, 1.2);
-  g.add(snout);
-  const eyeMat = sharedMat('dragon-eye', () => new THREE.MeshBasicMaterial({ color: '#ffe9a8' }));
-  for (const side of [-1, 1]) {
-    const horn = new THREE.Mesh(
-      sharedGeo('dragon-horn', () => new THREE.ConeGeometry(0.03, 0.16, 8)),
-      goldMat,
-    );
-    horn.position.set(side * 0.08, 0.14, 0);
-    horn.rotation.z = side * -0.5;
-    horn.rotation.x = -0.3;
-    g.add(horn);
-    const eye = new THREE.Mesh(sharedGeo('dragon-eye', () => new THREE.SphereGeometry(0.02, 8, 8)), eyeMat);
-    eye.position.set(side * 0.07, 0.06, 0.15);
-    g.add(eye);
-  }
-  return g;
-}
-
 const NY_CONFETTI_COLORS = ['#d4af37', '#ff6ec7', '#7df9ff', '#e0e0e0', '#ff5e78'];
 
 // New Year: a single champagne flute — tapered glass bowl, gold liquid,
@@ -840,6 +786,258 @@ function glowingCandle() {
   return g;
 }
 
+// Spring Festival: Chinese knot — red ring, gold diamond center, tassel.
+function chineseKnot() {
+  const g = new THREE.Group();
+  const red = sharedMat('sf-knot-red', () => new THREE.MeshStandardMaterial({
+    color: '#de2910', roughness: 0.45, emissive: '#de2910', emissiveIntensity: 0.25,
+  }));
+  const gold = sharedMat('sf-knot-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.7,
+  }));
+  const ring = new THREE.Mesh(
+    sharedGeo('sf-knot-ring', () => new THREE.TorusGeometry(0.14, 0.025, 8, 24)),
+    red,
+  );
+  g.add(ring);
+  const diamond = new THREE.Mesh(
+    sharedGeo('sf-knot-diamond', () => new THREE.BoxGeometry(0.11, 0.11, 0.02)),
+    gold,
+  );
+  diamond.rotation.z = Math.PI / 4;
+  g.add(diamond);
+  const cord = new THREE.Mesh(
+    sharedGeo('sf-knot-cord', () => new THREE.CylinderGeometry(0.008, 0.008, 0.12, 6)),
+    red,
+  );
+  cord.position.y = -0.2;
+  g.add(cord);
+  const tassel = new THREE.Mesh(
+    sharedGeo('sf-knot-tassel', () => new THREE.CylinderGeometry(0.015, 0.035, 0.1, 8)),
+    gold,
+  );
+  tassel.position.y = -0.3;
+  g.add(tassel);
+  return g;
+}
+
+// Spring Festival: 福 plaque — gold-rimmed red disc with a canvas 福.
+function fuPlaque() {
+  const g = new THREE.Group();
+  const rim = new THREE.Mesh(
+    sharedGeo('sf-fu-rim', () => new THREE.TorusGeometry(0.22, 0.025, 10, 28)),
+    sharedMat('sf-fu-gold', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.25, metalness: 0.8,
+    })),
+  );
+  g.add(rim);
+  const tex = sharedTex('sf-fu', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#de2910'; c.beginPath(); c.arc(128, 128, 126, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#ffd700'; c.lineWidth = 10;
+    c.beginPath(); c.arc(128, 128, 118, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#ffd700'; c.font = 'bold 150px serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('福', 128, 134);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const face = new THREE.Mesh(
+    sharedGeo('sf-fu-face', () => new THREE.CircleGeometry(0.22, 28)),
+    sharedMat('sf-fu-face', () => new THREE.MeshBasicMaterial({ map: tex })),
+  );
+  face.position.z = 0.005;
+  g.add(face);
+  return g;
+}
+
+// Spring Festival: spring couplet banner — vertical red banner with gold
+// characters drawn on canvas. `text` is written top to bottom.
+function coupletBanner(text: string) {
+  const g = new THREE.Group();
+  const tex = sharedTex(`sf-couplet-${text}`, () => {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 512;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#de2910'; c.fillRect(0, 0, 128, 512);
+    c.strokeStyle = '#ffd700'; c.lineWidth = 6; c.strokeRect(6, 6, 116, 500);
+    c.fillStyle = '#ffd700'; c.font = 'bold 84px serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    const chars = [...text];
+    chars.forEach((ch, i) => c.fillText(ch, 64, 80 + i * 110));
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const banner = new THREE.Mesh(
+    sharedGeo('sf-couplet', () => new THREE.PlaneGeometry(0.16, 0.64)),
+    sharedMat(`sf-couplet-${text}`, () => new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide })),
+  );
+  g.add(banner);
+  const rod = new THREE.Mesh(
+    sharedGeo('sf-couplet-rod', () => new THREE.CylinderGeometry(0.012, 0.012, 0.2, 8)),
+    sharedMat('sf-couplet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  rod.rotation.z = Math.PI / 2;
+  rod.position.y = 0.33;
+  g.add(rod);
+  return g;
+}
+
+// Spring Festival: firecracker string — red crackers with gold caps on a cord.
+function firecrackerString() {
+  const g = new THREE.Group();
+  const cord = new THREE.Mesh(
+    sharedGeo('sf-cracker-cord', () => new THREE.CylinderGeometry(0.006, 0.006, 0.55, 6)),
+    sharedMat('sf-cracker-cord', () => new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.8 })),
+  );
+  g.add(cord);
+  const red = sharedMat('sf-cracker-red', () => new THREE.MeshStandardMaterial({
+    color: '#de2910', roughness: 0.5, emissive: '#de2910', emissiveIntensity: 0.2,
+  }));
+  const gold = sharedMat('sf-cracker-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.7,
+  }));
+  for (let i = 0; i < 8; i++) {
+    const y = 0.22 - i * 0.06;
+    const cracker = new THREE.Mesh(
+      sharedGeo('sf-cracker', () => new THREE.CylinderGeometry(0.025, 0.025, 0.05, 10)),
+      red,
+    );
+    cracker.position.y = y;
+    g.add(cracker);
+    const cap = new THREE.Mesh(sharedGeo('sf-cracker-cap', () => new THREE.CylinderGeometry(0.026, 0.026, 0.012, 10)), gold);
+    cap.position.y = y + 0.028;
+    g.add(cap);
+  }
+  return g;
+}
+
+// Spring Festival: zodiac mascot — a small stylized horse (2026 is the
+// Year of the Horse), red body with gold mane, saddle and hooves.
+function zodiacHorse() {
+  const g = new THREE.Group();
+  const red = sharedMat('sf-horse-red', () => new THREE.MeshStandardMaterial({
+    color: '#de2910', roughness: 0.45, emissive: '#de2910', emissiveIntensity: 0.2,
+  }));
+  const gold = sharedMat('sf-horse-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.7,
+  }));
+  const body = new THREE.Mesh(
+    sharedGeo('sf-horse-body', () => new THREE.SphereGeometry(0.13, 14, 10)),
+    red,
+  );
+  body.scale.set(1, 0.85, 1.5);
+  body.position.y = 0.22;
+  g.add(body);
+  const neck = new THREE.Mesh(
+    sharedGeo('sf-horse-neck', () => new THREE.CylinderGeometry(0.05, 0.07, 0.16, 10)),
+    red,
+  );
+  neck.position.set(0, 0.32, 0.16);
+  neck.rotation.x = 0.5;
+  g.add(neck);
+  const head = new THREE.Mesh(
+    sharedGeo('sf-horse-head', () => new THREE.SphereGeometry(0.06, 12, 10)),
+    red,
+  );
+  head.position.set(0, 0.42, 0.24);
+  head.scale.set(1, 1, 1.4);
+  g.add(head);
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(sharedGeo('sf-horse-ear', () => new THREE.ConeGeometry(0.02, 0.06, 8)), red);
+    ear.position.set(side * 0.04, 0.48, 0.22);
+    g.add(ear);
+    const eye = new THREE.Mesh(
+      sharedGeo('sf-horse-eye', () => new THREE.SphereGeometry(0.012, 6, 6)),
+      sharedMat('sf-horse-eye', () => new THREE.MeshBasicMaterial({ color: '#1a1a1a' })),
+    );
+    eye.position.set(side * 0.05, 0.43, 0.29);
+    g.add(eye);
+  }
+  const mane = new THREE.Mesh(
+    sharedGeo('sf-horse-mane', () => new THREE.BoxGeometry(0.03, 0.18, 0.08)),
+    gold,
+  );
+  mane.position.set(0, 0.36, 0.1);
+  mane.rotation.x = 0.5;
+  g.add(mane);
+  const saddle = new THREE.Mesh(
+    sharedGeo('sf-horse-saddle', () => new THREE.BoxGeometry(0.16, 0.03, 0.12)),
+    gold,
+  );
+  saddle.position.set(0, 0.32, -0.02);
+  g.add(saddle);
+  for (const [lx, lz] of [[-0.07, 0.12], [0.07, 0.12], [-0.07, -0.12], [0.07, -0.12]] as const) {
+    const leg = new THREE.Mesh(
+      sharedGeo('sf-horse-leg', () => new THREE.CylinderGeometry(0.02, 0.02, 0.14, 8)),
+      red,
+    );
+    leg.position.set(lx, 0.07, lz);
+    g.add(leg);
+    const hoof = new THREE.Mesh(sharedGeo('sf-horse-hoof', () => new THREE.CylinderGeometry(0.022, 0.022, 0.02, 8)), gold);
+    hoof.position.set(lx, 0.01, lz);
+    g.add(hoof);
+  }
+  const tail = new THREE.Mesh(
+    sharedGeo('sf-horse-tail', () => new THREE.CylinderGeometry(0.015, 0.03, 0.14, 8)),
+    gold,
+  );
+  tail.position.set(0, 0.2, -0.22);
+  tail.rotation.x = 0.5;
+  g.add(tail);
+  return g;
+}
+
+// Spring Festival: plum branch — curved brown branch with pink blossoms.
+function plumBranch() {
+  const g = new THREE.Group();
+  const branchMat = sharedMat('sf-plum-branch', () => new THREE.MeshStandardMaterial({
+    color: '#5c3a1e', roughness: 0.85,
+  }));
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.12, 0.3, 0.05),
+    new THREE.Vector3(0.05, 0.55, -0.04),
+    new THREE.Vector3(0.22, 0.8, 0.03),
+  ]);
+  const branch = new THREE.Mesh(
+    sharedGeo('sf-plum-branch', () => new THREE.TubeGeometry(curve, 20, 0.018, 8)),
+    branchMat,
+  );
+  g.add(branch);
+  const petalMat = sharedMat('sf-plum-petal', () => new THREE.MeshStandardMaterial({
+    color: '#ff8fb8', roughness: 0.5, emissive: '#ff6b9d', emissiveIntensity: 0.25,
+  }));
+  const centerMat = sharedMat('sf-plum-center', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.6,
+    emissive: '#ffd700', emissiveIntensity: 0.4,
+  }));
+  const spots: [number, number, number][] = [
+    [0.12, 0.3, 0.05], [0.05, 0.55, -0.04], [0.22, 0.8, 0.03], [0.14, 0.62, 0.08],
+  ];
+  for (const [x, y, z] of spots) {
+    const blossom = new THREE.Group();
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      const petal = new THREE.Mesh(sharedGeo('sf-plum-petal', () => new THREE.SphereGeometry(0.025, 8, 6)), petalMat);
+      petal.position.set(Math.sin(a) * 0.03, Math.cos(a) * 0.03, 0);
+      petal.scale.set(1, 1, 0.35);
+      blossom.add(petal);
+    }
+    const center = new THREE.Mesh(sharedGeo('sf-plum-center', () => new THREE.SphereGeometry(0.012, 6, 6)), centerMat);
+    center.position.z = 0.01;
+    blossom.add(center);
+    blossom.position.set(x, y, z);
+    blossom.rotation.set(Math.random() * 0.6 - 0.3, Math.random() * Math.PI, 0);
+    g.add(blossom);
+  }
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -1033,12 +1231,50 @@ export function createThemeDecorations(
       fw.position.set(Math.sin(a) * 2.8, 3.5 + i * 0.4, Math.cos(a) * 2.8);
       add(fw, 'orbit', { angle: a, radius: 2.8, speed: 0.18 + i * 0.04, y: 3.5 + i * 0.4, wobble: 0.4 });
     }
-    // The dragon: slow-orbits the carousel top.
-    const dragonAngle = 0.6;
-    const dr = dragon();
-    dr.position.set(Math.sin(dragonAngle) * 3.4, 4.4, Math.cos(dragonAngle) * 3.4);
-    dr.rotation.y = Math.PI / 2 + dragonAngle;
-    add(dr, 'orbit', { angle: dragonAngle, radius: 3.4, y: 4.4, speed: 0.1, heading: 'tangent' });
+    // Chinese knots hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const k = chineseKnot();
+      const a = (i / 4) * Math.PI * 2 + 0.85;
+      k.position.set(Math.sin(a) * 2.35, 4.0, Math.cos(a) * 2.35);
+      k.rotation.y = -a;
+      add(k, 'sway');
+    }
+    // 福 plaque facing the front, flanked by spring couplets.
+    const fu = fuPlaque();
+    fu.position.set(0, 3.0, 2.85);
+    add(fu, 'sway');
+    const coupletTexts = ['迎春接福', '万事如意'] as const;
+    for (let i = 0; i < 2; i++) {
+      const banner = coupletBanner(coupletTexts[i]!);
+      const a = (i === 0 ? -1 : 1) * 0.55;
+      banner.position.set(Math.sin(a) * 2.2, 1.6, Math.cos(a) * 2.2);
+      banner.rotation.y = -a;
+      add(banner, 'sway');
+    }
+    // Firecracker strings hanging at mid height.
+    for (let i = 0; i < 4; i++) {
+      const fc = firecrackerString();
+      const a = (i / 4) * Math.PI * 2 + 1.5;
+      fc.position.set(Math.sin(a) * 2.2, 3.6, Math.cos(a) * 2.2);
+      add(fc, 'sway');
+    }
+    // Zodiac horse mascots on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.9;
+      const horse = zodiacHorse();
+      horse.position.set(Math.sin(a) * 1.5, 0.0, Math.cos(a) * 1.5);
+      horse.rotation.y = -a + Math.PI / 2;
+      add(horse, 'bob');
+    }
+    // Plum branches in bloom around the base.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.2;
+      const branch = plumBranch();
+      branch.position.set(Math.sin(a) * 2.0, 0.0, Math.cos(a) * 2.0);
+      branch.rotation.y = -a;
+      branch.rotation.z = -0.25;
+      add(branch, 'sway');
+    }
   }
 
   if (theme === 'new-year') {
@@ -1169,9 +1405,7 @@ export function createThemeDecorations(
           Number(e.y) + Math.sin(t * (1.3 + wob) + p) * 0.28 * k,
           Math.cos(angle) * Number(e.radius),
         );
-        // The dragon faces its travel direction (tangent); bats keep the
-        // legacy heading.
-        f.obj.rotation.y = e.heading === 'tangent' ? Math.PI / 2 + angle : -angle + Math.PI / 2;
+        f.obj.rotation.y = -angle + Math.PI / 2;
         const wings = f.obj.userData.wings as THREE.Object3D[] | undefined;
         if (wings) {
           const flap = Math.sin(t * (7 + wob * 4) + p) * 0.7;
