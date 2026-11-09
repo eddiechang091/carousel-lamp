@@ -1740,6 +1740,545 @@ function easterBasket() {
   return g;
 }
 
+// Mother's Day: one carnation — ruffled pink head on a green stem.
+function carnationHead() {
+  const g = new THREE.Group();
+  const pink = sharedMat('md-carnation', () => new THREE.MeshStandardMaterial({
+    color: '#ff69b4', roughness: 0.55,
+    emissive: '#c71585', emissiveIntensity: 0.25,
+  }));
+  const center = new THREE.Mesh(
+    sharedGeo('md-carnation-center', () => new THREE.SphereGeometry(0.035, 10, 8)),
+    sharedMat('md-carnation-center', () => new THREE.MeshStandardMaterial({
+      color: '#e85a9b', roughness: 0.5,
+    })),
+  );
+  center.scale.y = 0.7;
+  g.add(center);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const petal = new THREE.Mesh(
+      sharedGeo('md-carnation-petal', () => new THREE.SphereGeometry(0.032, 8, 6)),
+      pink,
+    );
+    petal.position.set(Math.sin(a) * 0.045, 0.005, Math.cos(a) * 0.045);
+    petal.scale.set(1, 0.35, 1.1);
+    petal.rotation.y = a;
+    g.add(petal);
+  }
+  return g;
+}
+
+// Mother's Day: bouquet of 5 carnations in a beige paper wrap.
+function carnationBouquet() {
+  const g = new THREE.Group();
+  const stemMat = sharedMat('md-stem', () => new THREE.MeshStandardMaterial({
+    color: '#8fbc8f', roughness: 0.7,
+  }));
+  const headOffsets = [
+    [0, 0.42, 0, 0], [0.07, 0.36, 0.04, 0.5], [-0.07, 0.36, 0.03, -0.4],
+    [0.03, 0.35, -0.07, 0.2], [-0.04, 0.35, -0.06, -0.2],
+  ];
+  for (const [x, y, z, tilt] of headOffsets) {
+    const stem = new THREE.Mesh(
+      sharedGeo('md-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6)),
+      stemMat,
+    );
+    stem.position.set(x * 0.4, 0.22, z * 0.4);
+    stem.rotation.z = tilt * 0.3;
+    g.add(stem);
+    const head = carnationHead();
+    head.position.set(x, y, z);
+    head.rotation.x = tilt * 0.3;
+    g.add(head);
+  }
+  const wrap = new THREE.Mesh(
+    sharedGeo('md-wrap', () => new THREE.ConeGeometry(0.15, 0.26, 12, 1, true)),
+    sharedMat('md-wrap', () => new THREE.MeshStandardMaterial({
+      color: '#f5f5dc', roughness: 0.7, side: THREE.DoubleSide,
+    })),
+  );
+  wrap.position.y = 0.13;
+  g.add(wrap);
+  const ribbon = new THREE.Mesh(
+    sharedGeo('md-ribbon', () => new THREE.TorusGeometry(0.085, 0.01, 8, 16)),
+    sharedMat('md-ribbon', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.4, emissive: '#c71585', emissiveIntensity: 0.3,
+    })),
+  );
+  ribbon.rotation.x = Math.PI / 2;
+  ribbon.position.y = 0.2;
+  g.add(ribbon);
+  return g;
+}
+
+// Mother's Day: heart teacup — pearl cup, amber tea, heart emblem, saucer.
+function heartTeacup() {
+  const g = new THREE.Group();
+  const pearl = sharedMat('md-cup', () => new THREE.MeshStandardMaterial({
+    color: '#fdf5e6', roughness: 0.35,
+  }));
+  const saucer = new THREE.Mesh(
+    sharedGeo('md-saucer', () => new THREE.CylinderGeometry(0.13, 0.1, 0.015, 16)),
+    pearl,
+  );
+  saucer.position.y = 0.008;
+  g.add(saucer);
+  const cup = new THREE.Mesh(
+    sharedGeo('md-cup', () => new THREE.CylinderGeometry(0.095, 0.07, 0.1, 16)),
+    pearl,
+  );
+  cup.position.y = 0.065;
+  g.add(cup);
+  const tea = new THREE.Mesh(
+    sharedGeo('md-tea', () => new THREE.CylinderGeometry(0.085, 0.085, 0.008, 16)),
+    sharedMat('md-tea', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.25, emissive: '#d4a24a', emissiveIntensity: 0.25,
+    })),
+  );
+  tea.position.y = 0.11;
+  g.add(tea);
+  const handle = new THREE.Mesh(
+    sharedGeo('md-cup-handle', () => new THREE.TorusGeometry(0.045, 0.008, 8, 14, Math.PI)),
+    pearl,
+  );
+  handle.position.set(0.1, 0.065, 0);
+  handle.rotation.z = -Math.PI / 2;
+  g.add(handle);
+  const heart = new THREE.Mesh(
+    sharedGeo('md-cup-heart', () => new THREE.ExtrudeGeometry(heartShape(0.55), { depth: 0.012, bevelEnabled: false })),
+    sharedMat('md-cup-heart', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.35, emissive: '#c71585', emissiveIntensity: 0.4,
+    })),
+  );
+  heart.position.set(0, 0.03, 0.085);
+  g.add(heart);
+  return g;
+}
+
+// Mother's Day: handwritten envelope — cream envelope, letter peeking out
+// with a "Thank you, Mom" note, red wax seal.
+function loveLetter() {
+  const g = new THREE.Group();
+  const tex = sharedTex('md-letter-note', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 160;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#fffdf5'; c.fillRect(0, 0, 256, 160);
+    c.fillStyle = '#c71585';
+    c.font = 'italic 30px cursive';
+    c.textAlign = 'center';
+    c.fillText('Thank you,', 128, 62);
+    c.fillText('Mom ♥', 128, 105);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const note = new THREE.Mesh(
+    sharedGeo('md-note', () => new THREE.PlaneGeometry(0.2, 0.125)),
+    sharedMat('md-note', () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, side: THREE.DoubleSide })),
+  );
+  note.position.set(0, 0.13, 0);
+  note.rotation.x = -0.15;
+  g.add(note);
+  const env = new THREE.Mesh(
+    sharedGeo('md-envelope', () => new THREE.BoxGeometry(0.24, 0.16, 0.012)),
+    sharedMat('md-envelope', () => new THREE.MeshStandardMaterial({ color: '#f5f5dc', roughness: 0.7 })),
+  );
+  env.position.y = 0.08;
+  g.add(env);
+  const flapShape = new THREE.Shape();
+  flapShape.moveTo(-0.12, 0.16);
+  flapShape.lineTo(0.12, 0.16);
+  flapShape.lineTo(0, 0.05);
+  flapShape.closePath();
+  const flap = new THREE.Mesh(
+    sharedGeo('md-envelope-flap', () => new THREE.ExtrudeGeometry(flapShape, { depth: 0.004, bevelEnabled: false })),
+    sharedMat('md-envelope-flap', () => new THREE.MeshStandardMaterial({ color: '#e8ddb8', roughness: 0.7 })),
+  );
+  flap.position.set(0, 0, 0.008);
+  g.add(flap);
+  const seal = new THREE.Mesh(
+    sharedGeo('md-wax-seal', () => new THREE.CylinderGeometry(0.022, 0.022, 0.008, 12)),
+    sharedMat('md-wax-seal', () => new THREE.MeshStandardMaterial({
+      color: '#c71585', roughness: 0.4, emissive: '#c71585', emissiveIntensity: 0.3,
+    })),
+  );
+  seal.rotation.x = Math.PI / 2;
+  seal.position.set(0, 0.1, 0.01);
+  g.add(seal);
+  return g;
+}
+
+// Mother's Day: folded knit blanket — V-stitch canvas texture, yarn ball
+// and knitting needles on top.
+function knitFabric() {
+  const g = new THREE.Group();
+  const tex = sharedTex('md-knit', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 192;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#f5f5dc'; c.fillRect(0, 0, 256, 192);
+    const rows = ['#ff69b4', '#a8c8e8', '#f0d060'];
+    c.lineWidth = 4; c.lineCap = 'round';
+    for (let r = 0; r < 6; r++) {
+      c.strokeStyle = rows[r % 3]!;
+      for (let col = 0; col < 8; col++) {
+        const x = 16 + col * 32, y = 16 + r * 32;
+        c.beginPath();
+        c.moveTo(x - 10, y - 8); c.lineTo(x, y + 8); c.lineTo(x + 10, y - 8);
+        c.stroke();
+      }
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const blanket = new THREE.Mesh(
+    sharedGeo('md-blanket', () => new THREE.BoxGeometry(0.34, 0.09, 0.26)),
+    sharedMat('md-blanket', () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 })),
+  );
+  blanket.position.y = 0.045;
+  g.add(blanket);
+  const yarn = new THREE.Mesh(
+    sharedGeo('md-yarn', () => new THREE.SphereGeometry(0.055, 12, 10)),
+    sharedMat('md-yarn', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.8, emissive: '#c71585', emissiveIntensity: 0.15,
+    })),
+  );
+  yarn.position.set(0.08, 0.14, 0.05);
+  g.add(yarn);
+  const needleMat = sharedMat('md-needle', () => new THREE.MeshStandardMaterial({
+    color: '#d4a24a', roughness: 0.3, metalness: 0.8,
+  }));
+  for (const [x, z, ry] of [[-0.08, 0.06, 0.5], [-0.05, 0.08, 0.35]] as const) {
+    const needle = new THREE.Mesh(
+      sharedGeo('md-needle', () => new THREE.CylinderGeometry(0.004, 0.004, 0.24, 6)),
+      needleMat,
+    );
+    needle.position.set(x, 0.11, z);
+    needle.rotation.set(Math.PI / 2 - 0.12, 0, ry);
+    g.add(needle);
+  }
+  return g;
+}
+
+// Mother's Day: pearl necklace — pearls draped along a sagging curve with
+// a gold heart pendant at the bottom.
+function pearlNecklace() {
+  const g = new THREE.Group();
+  const pearlMat = sharedMat('md-pearl', () => new THREE.MeshStandardMaterial({
+    color: '#fff8f0', roughness: 0.2, metalness: 0.15,
+    emissive: '#ffe9d0', emissiveIntensity: 0.25,
+  }));
+  const pts = [
+    new THREE.Vector3(-0.22, 0.16, 0), new THREE.Vector3(-0.18, 0.04, 0),
+    new THREE.Vector3(-0.08, -0.02, 0), new THREE.Vector3(0, -0.04, 0),
+    new THREE.Vector3(0.08, -0.02, 0), new THREE.Vector3(0.18, 0.04, 0),
+    new THREE.Vector3(0.22, 0.16, 0),
+  ];
+  const curve = new THREE.CatmullRomCurve3(pts);
+  for (let i = 0; i < 15; i++) {
+    const p = curve.getPoint(i / 14);
+    const pearl = new THREE.Mesh(
+      sharedGeo('md-pearl', () => new THREE.SphereGeometry(0.024, 10, 8)),
+      pearlMat,
+    );
+    pearl.position.copy(p);
+    g.add(pearl);
+  }
+  const pendant = new THREE.Mesh(
+    sharedGeo('md-pendant', () => new THREE.ExtrudeGeometry(heartShape(0.5), { depth: 0.01, bevelEnabled: false })),
+    sharedMat('md-pendant', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.85,
+    })),
+  );
+  pendant.position.set(0, -0.1, 0.01);
+  g.add(pendant);
+  return g;
+}
+
+// Dragon Boat: dragon boat — vermilion hull (side-profile extrusion with
+// upturned bow/stern), dragon head at the bow, tail at the stern, drum,
+// two flags. The boat from the spec; unrelated to the deleted Spring
+// Festival idle dragon.
+function dragonBoat() {
+  const g = new THREE.Group();
+  const red = sharedMat('db-hull', () => new THREE.MeshStandardMaterial({
+    color: '#b22222', roughness: 0.5, emissive: '#b22222', emissiveIntensity: 0.12,
+  }));
+  const gold = sharedMat('db-gold', () => new THREE.MeshStandardMaterial({
+    color: '#d4a24a', roughness: 0.3, metalness: 0.8,
+  }));
+  const hullShape = new THREE.Shape();
+  hullShape.moveTo(-0.5, 0);
+  hullShape.lineTo(0.5, 0);
+  hullShape.quadraticCurveTo(0.62, 0.08, 0.56, 0.24);
+  hullShape.lineTo(-0.56, 0.24);
+  hullShape.quadraticCurveTo(-0.62, 0.08, -0.5, 0);
+  const hull = new THREE.Mesh(
+    sharedGeo('db-hull', () => new THREE.ExtrudeGeometry(hullShape, { depth: 0.2, bevelEnabled: false })),
+    red,
+  );
+  hull.position.z = -0.1;
+  g.add(hull);
+  const rim = new THREE.Mesh(
+    sharedGeo('db-hull-rim', () => new THREE.BoxGeometry(1.1, 0.025, 0.21)),
+    gold,
+  );
+  rim.position.y = 0.24;
+  g.add(rim);
+  // Dragon head at the bow (+x): red head, gold horns, snout, whiskers.
+  const head = new THREE.Group();
+  head.position.set(0.58, 0.3, 0);
+  const skull = new THREE.Mesh(
+    sharedGeo('db-head', () => new THREE.SphereGeometry(0.085, 12, 10)),
+    red,
+  );
+  skull.scale.set(1.25, 0.9, 0.8);
+  head.add(skull);
+  const snout = new THREE.Mesh(
+    sharedGeo('db-snout', () => new THREE.ConeGeometry(0.045, 0.13, 10)),
+    gold,
+  );
+  snout.rotation.z = -Math.PI / 2;
+  snout.position.set(0.13, -0.01, 0);
+  head.add(snout);
+  for (const side of [-1, 1]) {
+    const horn = new THREE.Mesh(
+      sharedGeo('db-horn', () => new THREE.ConeGeometry(0.018, 0.12, 8)),
+      gold,
+    );
+    horn.position.set(-0.05, 0.08, side * 0.04);
+    horn.rotation.z = 0.9;
+    head.add(horn);
+    const eye = new THREE.Mesh(
+      sharedGeo('db-eye', () => new THREE.SphereGeometry(0.018, 8, 6)),
+      sharedMat('db-eye', () => new THREE.MeshBasicMaterial({ color: '#fff8e0' })),
+    );
+    eye.position.set(0.05, 0.03, side * 0.055);
+    head.add(eye);
+    const whisker = new THREE.Mesh(
+      sharedGeo('db-whisker', () => new THREE.CylinderGeometry(0.003, 0.003, 0.14, 6)),
+      gold,
+    );
+    whisker.position.set(0.12, -0.04, side * 0.05);
+    whisker.rotation.set(side * 0.5, 0, Math.PI / 2 - 0.3);
+    head.add(whisker);
+  }
+  for (let i = 0; i < 3; i++) {
+    const mane = new THREE.Mesh(
+      sharedGeo('db-mane', () => new THREE.ConeGeometry(0.02, 0.09, 6)),
+      sharedMat('db-mane', () => new THREE.MeshStandardMaterial({
+        color: '#ff6b6b', roughness: 0.5, emissive: '#ff6b6b', emissiveIntensity: 0.3,
+      })),
+    );
+    mane.position.set(-0.09 - i * 0.03, 0.06 - i * 0.01, 0);
+    mane.rotation.z = 0.7 + i * 0.2;
+    head.add(mane);
+  }
+  g.add(head);
+  // Tail fin sweeping up at the stern.
+  const tail = new THREE.Mesh(
+    sharedGeo('db-tail', () => new THREE.ConeGeometry(0.05, 0.24, 8)),
+    gold,
+  );
+  tail.position.set(-0.6, 0.32, 0);
+  tail.rotation.z = 0.8;
+  g.add(tail);
+  // Drum amidships.
+  const drum = new THREE.Mesh(
+    sharedGeo('db-drum', () => new THREE.CylinderGeometry(0.07, 0.07, 0.09, 14)),
+    red,
+  );
+  drum.position.set(0.08, 0.29, 0);
+  g.add(drum);
+  const drumTop = new THREE.Mesh(
+    sharedGeo('db-drum-top', () => new THREE.CylinderGeometry(0.065, 0.065, 0.012, 14)),
+    sharedMat('db-drum-top', () => new THREE.MeshStandardMaterial({ color: '#eef4e6', roughness: 0.6 })),
+  );
+  drumTop.position.set(0.08, 0.34, 0);
+  g.add(drumTop);
+  // Two pennant flags.
+  const flagColors = ['#47885e', '#f0c24b'];
+  for (let i = 0; i < 2; i++) {
+    const pole = new THREE.Mesh(
+      sharedGeo('db-flag-pole', () => new THREE.CylinderGeometry(0.005, 0.005, 0.26, 6)),
+      gold,
+    );
+    pole.position.set(-0.3 + i * 0.6, 0.37, 0);
+    g.add(pole);
+    const flagShape = new THREE.Shape();
+    flagShape.moveTo(0, 0);
+    flagShape.lineTo(0.11, -0.025);
+    flagShape.lineTo(0, -0.05);
+    flagShape.closePath();
+    const flag = new THREE.Mesh(
+      sharedGeo('db-flag', () => new THREE.ShapeGeometry(flagShape)),
+      sharedMat(`db-flag-${i}`, () => new THREE.MeshStandardMaterial({
+        color: flagColors[i]!, roughness: 0.6, side: THREE.DoubleSide,
+      })),
+    );
+    flag.position.set(-0.3 + i * 0.6, 0.5, 0);
+    g.add(flag);
+  }
+  return g;
+}
+
+// Dragon Boat: zongzi — bamboo-green pyramid tied with a gold string.
+function zongzi() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('db-zongzi', () => new THREE.ConeGeometry(0.1, 0.18, 4)),
+    sharedMat('db-zongzi', () => new THREE.MeshStandardMaterial({
+      color: '#47885e', roughness: 0.6, emissive: '#47885e', emissiveIntensity: 0.1,
+    })),
+  );
+  body.rotation.y = Math.PI / 4;
+  body.position.y = 0.09;
+  g.add(body);
+  const band = new THREE.Mesh(
+    sharedGeo('db-zongzi-band', () => new THREE.TorusGeometry(0.082, 0.006, 6, 12)),
+    sharedMat('db-zongzi-band', () => new THREE.MeshStandardMaterial({
+      color: '#f0c24b', roughness: 0.4,
+    })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.09;
+  g.add(band);
+  const tip = new THREE.Mesh(
+    sharedGeo('db-zongzi-tip', () => new THREE.ConeGeometry(0.02, 0.06, 6)),
+    sharedMat('db-zongzi-tip', () => new THREE.MeshStandardMaterial({ color: '#2f6b43', roughness: 0.6 })),
+  );
+  tip.position.y = 0.2;
+  g.add(tip);
+  return g;
+}
+
+// Dragon Boat: five-color cord — hanging string with five beads
+// (red / yellow / blue / white / green) and a gold tassel.
+function fiveColorCord() {
+  const g = new THREE.Group();
+  const string = new THREE.Mesh(
+    sharedGeo('db-cord-string', () => new THREE.CylinderGeometry(0.004, 0.004, 0.36, 6)),
+    sharedMat('db-cord-string', () => new THREE.MeshStandardMaterial({ color: '#eef4e6', roughness: 0.7 })),
+  );
+  g.add(string);
+  const colors = ['#b22222', '#f0c24b', '#20b2aa', '#f5f5f5', '#47885e'];
+  for (let i = 0; i < 5; i++) {
+    const bead = new THREE.Mesh(
+      sharedGeo('db-cord-bead', () => new THREE.SphereGeometry(0.024, 10, 8)),
+      sharedMat(`db-cord-bead-${i}`, () => new THREE.MeshStandardMaterial({
+        color: colors[i]!, roughness: 0.4,
+      })),
+    );
+    bead.position.y = 0.1 - i * 0.055;
+    g.add(bead);
+  }
+  const tassel = new THREE.Mesh(
+    sharedGeo('db-cord-tassel', () => new THREE.ConeGeometry(0.02, 0.09, 8)),
+    sharedMat('db-cord-tassel', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.35, metalness: 0.6,
+    })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.22;
+  g.add(tassel);
+  return g;
+}
+
+// Dragon Boat: mugwort & calamus sprig — long green blades tied with a
+// red band.
+function mugwortSprig() {
+  const g = new THREE.Group();
+  const leafMat = sharedMat('db-mugwort', () => new THREE.MeshStandardMaterial({
+    color: '#47885e', roughness: 0.7,
+  }));
+  const reedMat = sharedMat('db-calamus', () => new THREE.MeshStandardMaterial({
+    color: '#7fb069', roughness: 0.7,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    const blade = new THREE.Mesh(
+      sharedGeo('db-mugwort-blade', () => new THREE.ConeGeometry(0.022, 0.3, 6)),
+      leafMat,
+    );
+    blade.position.set(Math.sin(a) * 0.04, 0.15, Math.cos(a) * 0.04);
+    blade.rotation.set(Math.cos(a) * 0.3, 0, Math.sin(a) * -0.3);
+    blade.scale.z = 0.4;
+    g.add(blade);
+  }
+  for (let i = 0; i < 2; i++) {
+    const a = i * Math.PI + 0.9;
+    const reed = new THREE.Mesh(
+      sharedGeo('db-calamus-blade', () => new THREE.ConeGeometry(0.012, 0.4, 6)),
+      reedMat,
+    );
+    reed.position.set(Math.sin(a) * 0.02, 0.2, Math.cos(a) * 0.02);
+    reed.rotation.set(Math.cos(a) * 0.15, 0, Math.sin(a) * -0.15);
+    reed.scale.z = 0.35;
+    g.add(reed);
+  }
+  const band = new THREE.Mesh(
+    sharedGeo('db-sprig-band', () => new THREE.TorusGeometry(0.05, 0.008, 6, 12)),
+    sharedMat('db-sprig-band', () => new THREE.MeshStandardMaterial({
+      color: '#b22222', roughness: 0.5,
+    })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.08;
+  g.add(band);
+  return g;
+}
+
+// Dragon Boat: sachet — vermilion silk pouch, gold neck, tassel, gold emblem.
+function sachet() {
+  const g = new THREE.Group();
+  const silk = sharedMat('db-sachet', () => new THREE.MeshStandardMaterial({
+    color: '#b22222', roughness: 0.45, emissive: '#b22222', emissiveIntensity: 0.2,
+  }));
+  const pouch = new THREE.Mesh(
+    sharedGeo('db-sachet-pouch', () => new THREE.SphereGeometry(0.09, 14, 10)),
+    silk,
+  );
+  pouch.scale.set(1, 1.15, 0.75);
+  g.add(pouch);
+  const neck = new THREE.Mesh(
+    sharedGeo('db-sachet-neck', () => new THREE.CylinderGeometry(0.03, 0.04, 0.04, 10)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  neck.position.y = 0.11;
+  g.add(neck);
+  const drawstring = new THREE.Mesh(
+    sharedGeo('db-sachet-string', () => new THREE.TorusGeometry(0.035, 0.006, 6, 12)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  drawstring.rotation.x = Math.PI / 2;
+  drawstring.position.y = 0.09;
+  g.add(drawstring);
+  const emblem = new THREE.Mesh(
+    sharedGeo('db-sachet-emblem', () => new THREE.SphereGeometry(0.025, 10, 8)),
+    sharedMat('db-sachet-gold', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.7,
+    })),
+  );
+  emblem.position.set(0, 0.01, 0.068);
+  emblem.scale.z = 0.4;
+  g.add(emblem);
+  const tassel = new THREE.Mesh(
+    sharedGeo('db-sachet-tassel', () => new THREE.ConeGeometry(0.018, 0.08, 8)),
+    sharedMat('db-sachet-tassel', () => new THREE.MeshStandardMaterial({
+      color: '#f0c24b', roughness: 0.5,
+    })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.14;
+  g.add(tassel);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2316,6 +2855,121 @@ export function createThemeDecorations(
       basket.rotation.y = -a;
       basket.scale.setScalar(1.15);
       add(basket, 'bob');
+    }
+  }
+
+  if (theme === 'mothers-day') {
+    // Carnation bouquets on the base ring (scaled up so they read past the horses).
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.5;
+      const bq = carnationBouquet();
+      bq.position.set(Math.sin(a) * 1.6, 0.0, Math.cos(a) * 1.6);
+      bq.rotation.y = -a;
+      bq.scale.setScalar(1.3);
+      add(bq, 'bob');
+    }
+    // Heart teacups on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.6;
+      const cup = heartTeacup();
+      cup.position.set(Math.sin(a) * 1.4, 0.0, Math.cos(a) * 1.4);
+      cup.rotation.y = -a;
+      cup.scale.setScalar(1.25);
+      add(cup, 'bob');
+    }
+    // Love letters — two on the base, two floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.3;
+      const letter = loveLetter();
+      letter.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      letter.rotation.y = -a;
+      letter.scale.setScalar(1.3);
+      add(letter, 'bob');
+    }
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.4;
+      const letter = loveLetter();
+      letter.position.set(Math.sin(a) * 2.5, 2.3 + i * 0.8, Math.cos(a) * 2.5);
+      letter.rotation.y = -a;
+      letter.scale.setScalar(1.5);
+      add(letter, 'sway');
+    }
+    // Folded knit blankets on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.9;
+      const knit = knitFabric();
+      knit.position.set(Math.sin(a) * 1.8, 0.0, Math.cos(a) * 1.8);
+      knit.rotation.y = -a;
+      knit.scale.setScalar(1.15);
+      add(knit, 'bob');
+    }
+    // Pearl necklaces — one laid flat on the front base (pendant outward),
+    // one hanging from the rim.
+    const necklace = pearlNecklace();
+    necklace.position.set(0, 0.06, 2.0);
+    necklace.rotation.x = -Math.PI / 2;
+    necklace.scale.setScalar(1.3);
+    add(necklace, 'sway');
+    const necklaceHigh = pearlNecklace();
+    necklaceHigh.position.set(1.4, 4.2, 1.8);
+    necklaceHigh.rotation.y = -0.6;
+    necklaceHigh.scale.setScalar(1.2);
+    add(necklaceHigh, 'sway');
+  }
+
+  if (theme === 'dragon-boat') {
+    // Dragon boats on the base — one hero boat in front, a smaller one behind.
+    // Scaled up so the hull and dragon head read past the horses.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.6;
+      const boat = dragonBoat();
+      boat.position.set(Math.sin(a) * 1.5, 0.0, Math.cos(a) * 1.5);
+      boat.rotation.y = -a + Math.PI / 2;
+      boat.scale.setScalar(i === 0 ? 1.25 : 1.1);
+      add(boat, 'bob');
+    }
+    // Zongzi on the base ring.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.2;
+      const z = zongzi();
+      z.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      z.rotation.y = a;
+      z.scale.setScalar(1.3);
+      add(z, 'bob');
+    }
+    // Five-color cords hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.7;
+      const cord = fiveColorCord();
+      cord.position.set(Math.sin(a) * 2.3, 3.9, Math.cos(a) * 2.3);
+      cord.scale.setScalar(1.5);
+      add(cord, 'sway');
+    }
+    // Mugwort & calamus sprigs on the base.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 1.1;
+      const sprig = mugwortSprig();
+      sprig.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      sprig.rotation.y = a;
+      sprig.scale.setScalar(1.2);
+      add(sprig, 'bob');
+    }
+    // Sachets — two on the base, two floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.9;
+      const s = sachet();
+      s.position.set(Math.sin(a) * 1.4, 0.12, Math.cos(a) * 1.4);
+      s.rotation.y = -a;
+      s.scale.setScalar(1.3);
+      add(s, 'bob');
+    }
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.8;
+      const s = sachet();
+      s.position.set(Math.sin(a) * 2.5, 2.4 + i * 0.8, Math.cos(a) * 2.5);
+      s.rotation.y = -a;
+      s.scale.setScalar(1.3);
+      add(s, 'sway');
     }
   }
 
