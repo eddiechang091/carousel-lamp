@@ -325,6 +325,31 @@ function candyCane() {
   return g;
 }
 
+// One shared radial glow texture + sprite material for all firework orbs
+// (replaces 80 per-ball PointLights — see lunarFireworkOrb). Lazily built
+// so importing this module never touches the DOM (tests, SSR).
+let glowTexture: THREE.CanvasTexture | null = null;
+let glowMaterial: THREE.SpriteMaterial | null = null;
+function getGlowMaterial(): THREE.SpriteMaterial {
+  if (!glowMaterial) {
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    const ctx = c.getContext('2d')!;
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(0.35, 'rgba(255,220,150,0.55)');
+    grad.addColorStop(1, 'rgba(255,180,80,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    glowTexture = new THREE.CanvasTexture(c);
+    glowMaterial = new THREE.SpriteMaterial({
+      map: glowTexture, blending: THREE.AdditiveBlending,
+      depthWrite: false, transparent: true, opacity: 0.85,
+    });
+  }
+  return glowMaterial;
+}
+
 function lunarFireworkOrb() {
   const g = new THREE.Group();
   const colors = ['#ff4400', '#ffd700', '#ff88cc', '#44ddff'];
@@ -335,13 +360,16 @@ function lunarFireworkOrb() {
     const orb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6),
       new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.5, roughness: 0.1 }));
     orb.position.set(Math.cos(a)*r, Math.sin(i*0.9)*0.08, Math.sin(a)*r); g.add(orb);
-    const pt = new THREE.PointLight(col, 0.6, 0.6, 2);
-    pt.position.copy(orb.position); g.add(pt);
+    // No PointLight per ball: 4 orbs x 20 balls was 80 lights. The emissive
+    // balls plus one shared additive glow sprite below read the same.
   }
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(0.9);
+  g.add(glow);
   return g;
 }
 
-function lantern() {
+function lantern(withLight = false) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     new THREE.SphereGeometry(0.14, 24, 18),
@@ -368,9 +396,13 @@ function lantern() {
   );
   tassel.position.y = -0.29;
   g.add(tassel);
-  const glow = new THREE.PointLight('#ff6a3c', 1.4, 1.4, 2);
-  glow.position.y = -0.02;
-  g.add(glow);
+  // Only a few lanterns carry a real light (was 10); the rest read via
+  // emissive. Keeps the Lunar total at 3 lantern lights + 0 orb lights.
+  if (withLight) {
+    const glow = new THREE.PointLight('#ff6a3c', 1.4, 1.4, 2);
+    glow.position.y = -0.02;
+    g.add(glow);
+  }
   return g;
 }
 
@@ -532,9 +564,9 @@ export function createThemeDecorations(
   }
 
   if (theme === 'lunar') {
-    // 10 lanterns at two heights
+    // 10 lanterns at two heights; only the first 3 carry a PointLight
     for (let i = 0; i < 10; i++) {
-      const l = lantern();
+      const l = lantern(i < 3);
       const a = (i / 10) * Math.PI * 2 + 0.4;
       l.position.set(Math.sin(a) * 2.35, 4.35 + (i % 2) * 0.4, Math.cos(a) * 2.35);
       add(l, 'sway');
