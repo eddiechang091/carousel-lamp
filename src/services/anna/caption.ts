@@ -17,11 +17,15 @@ const LANGUAGE_NAMES: Record<Locale, string> = {
   zh: "Chinese",
 };
 
-const THEME_NAMES: Record<ThemeId, string> = {
+// Theme display names for the AI caption prompt. Only the classic four
+// are named; any other theme falls back to "Classic" (see ?? below).
+// NOTE: kept Partial on purpose — the full 15-theme registry lives in
+// themes.ts and this file must not grow a second copy of it.
+const THEME_NAMES: Partial<Record<ThemeId, string>> = {
   default: "Classic",
   halloween: "Halloween",
   christmas: "Christmas",
-  lunar: "Lunar New Year",
+  'spring-festival': "Spring Festival",
 };
 
 export function buildCaptionMessages(opts: {

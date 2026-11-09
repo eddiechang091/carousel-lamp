@@ -42,7 +42,7 @@ import { MusicBoxAudio } from '@/lib/music-box';
 import { readSavedPhotos, savePhotosLocally, type SavedPhoto } from '@/lib/photo-storage';
 import { convertHeic, isHeicFile } from '@/lib/heic';
 import { readSavedView, readMusicPref, saveMusicPref, readThemePref, saveThemePref } from '@/lib/view-storage';
-import { THEMES, THEME_IDS, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
+import { THEMES, normalizeThemeMode, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
 import { useI18n } from '@/i18n';
 import { getLlmService, LlmUnavailableError, LlmVisionNotCapableError } from '@/services/anna/llm';
 import { generateAiCaption } from '@/services/anna/caption';
@@ -127,12 +127,7 @@ export default function Home() {
   }, [selected]);
   const play = (kind: Parameters<ChimeAudio['play']>[0]) =>
     audio.current?.play(kind);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => {
-    const saved = readThemePref();
-    return saved === 'auto' || (THEME_IDS as string[]).includes(saved)
-      ? (saved as ThemeMode)
-      : 'auto';
-  });
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => normalizeThemeMode(readThemePref()));
   const [themeId, setThemeId] = useState<ThemeId>(() => resolveTheme(themeMode));
   const themeFirstApplied = useRef(false);
   useEffect(() => {

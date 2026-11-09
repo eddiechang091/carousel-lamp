@@ -88,7 +88,7 @@ describe('ThemeSwitcher', () => {
     expect(screen.getByText('Classic')).toBeInTheDocument();
     expect(screen.getByText('Halloween')).toBeInTheDocument();
     expect(screen.getByText('Christmas')).toBeInTheDocument();
-    expect(screen.getByText('Lunar New Year')).toBeInTheDocument();
+    expect(screen.getByText('Spring Festival')).toBeInTheDocument();
   });
 
   it('calls onChange when a theme option is selected', async () => {
