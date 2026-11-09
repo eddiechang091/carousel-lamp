@@ -1030,7 +1030,10 @@ export function createCarousel(
     const previous = decorations;
     if (previous) {
       previous.leave().then(() => {
-        previous.dispose();
+        // Guard: a newer setTheme may have replaced the layer while this
+        // one was leaving — only dispose it if it is no longer live,
+        // otherwise a rapid switch strands (or kills) the current layer.
+        if (decorations !== previous) previous.dispose();
       });
     }
     decorations = createThemeDecorations(id);

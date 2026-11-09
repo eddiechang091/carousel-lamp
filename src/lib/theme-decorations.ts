@@ -484,7 +484,7 @@ export function createThemeDecorations(
   group.name = `theme-decorations-${theme}`;
   const floaters: Floater[] = [];
   const roots: THREE.Object3D[] = [];
-  const snowPoints: { points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>; speeds: Float32Array; bases: Float32Array }[] = [];
+  const snowPoints: { points: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>; material: THREE.ShaderMaterial }[] = [];
 
   const add = (
     obj: THREE.Object3D,
@@ -594,26 +594,64 @@ export function createThemeDecorations(
       b.position.set(Math.sin(a) * 2.28, 4.62, Math.cos(a) * 2.28);
       add(b, 'sway', undefined, 'ambient');
     }
-    // Falling snow: points inside a cylinder around the carousel.
+    // Falling snow: points inside a cylinder around the carousel. Fall +
+    // drift run in the vertex shader (update() only moves uniforms) — the
+    // old code rewrote all 260x3 floats on the CPU every frame.
     const count = 260;
     const pos = new Float32Array(count * 3);
     const speeds = new Float32Array(count);
-    const bases = new Float32Array(count * 2);
+    const phases = new Float32Array(count);
+    const radii = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const r = 2.0 + Math.random() * 2.8;
       pos.set([Math.sin(a) * r, Math.random() * 7, Math.cos(a) * r], i * 3);
       speeds[i] = 0.25 + Math.random() * 0.5;
-      bases[i * 2] = Math.random() * Math.PI * 2;
-      bases[i * 2 + 1] = r;
+      phases[i] = Math.random() * Math.PI * 2;
+      radii[i] = r;
     }
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    const mat = new THREE.PointsMaterial({ color: '#ffffff', size: 0.05, transparent: true, opacity: 0.92, depthWrite: false, sizeAttenuation: true });
+    geo.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+    geo.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
+    geo.setAttribute('aRadius', new THREE.BufferAttribute(radii, 1));
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime: { value: 0 },
+        uMotion: { value: 1 },
+        uOpacity: { value: 0.92 },
+        uPixelRatio: { value: typeof window !== 'undefined' ? Math.min(window.devicePixelRatio || 1, 2) : 1 },
+      },
+      transparent: true, depthWrite: false, toneMapped: false,
+      vertexShader: `
+        attribute float aSpeed; attribute float aPhase; attribute float aRadius;
+        uniform float uTime; uniform float uMotion; uniform float uPixelRatio;
+        void main() {
+          vec3 p = position;
+          // Fall, wrapping over [-0.2, 7.2). The +0.2 keeps t=0 exact.
+          p.y = mod(position.y + 0.2 - uTime * aSpeed * uMotion, 7.4) - 0.2;
+          // Slow swirl around the column plus sideways drift.
+          float a = atan(position.x, position.z) + uTime * 0.08 * uMotion;
+          p.x = sin(a) * aRadius + sin(uTime * 0.6 + aPhase) * 0.12 * uMotion;
+          p.z = cos(a) * aRadius;
+          vec4 mv = modelViewMatrix * vec4(p, 1.0);
+          gl_Position = projectionMatrix * mv;
+          gl_PointSize = clamp(0.05 * uPixelRatio * 480.0 / max(1.0, -mv.z), 1.0, 64.0 * uPixelRatio);
+        }`,
+      fragmentShader: `
+        uniform float uOpacity;
+        void main() {
+          vec2 p = (gl_PointCoord - 0.5) * 2.0;
+          float alpha = (1.0 - smoothstep(0.7, 1.0, length(p))) * uOpacity;
+          if (alpha < 0.01) discard;
+          gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
+          #include <colorspace_fragment>
+        }`,
+    });
     const points = new THREE.Points(geo, mat);
     points.name = 'christmas-snowfall';
     group.add(points);
-    snowPoints.push({ points, speeds, bases });
+    snowPoints.push({ points, material: mat });
   }
 
   if (theme === 'lunar') {
@@ -705,8 +743,8 @@ export function createThemeDecorations(
       }
     });
     for (const s of snowPoints) {
-      s.points.material.opacity = 0;
-      gsap.to(s.points.material, { opacity: 0.9, duration: 1.4, ease: 'power2.out', overwrite: true });
+      s.material.uniforms.uOpacity.value = 0;
+      gsap.to(s.material.uniforms.uOpacity, { value: 0.92, duration: 1.4, ease: 'power2.out', overwrite: true });
     }
   }
 
@@ -724,7 +762,7 @@ export function createThemeDecorations(
     }));
     for (const s of snowPoints) {
       jobs.push(new Promise<void>(resolve => {
-        gsap.to(s.points.material, { opacity: 0, duration: 0.5, ease: 'power2.in', overwrite: true, onComplete: () => resolve() });
+        gsap.to(s.material.uniforms.uOpacity, { value: 0, duration: 0.5, ease: 'power2.in', overwrite: true, onComplete: () => resolve() });
       }));
     }
     return jobs.length ? Promise.all(jobs).then(() => undefined) : Promise.resolve();
@@ -769,20 +807,10 @@ export function createThemeDecorations(
         );
       }
     }
-    for (const { points, speeds, bases } of snowPoints) {
-      const attr = points.geometry.getAttribute('position') as THREE.BufferAttribute;
-      const arr = attr.array as Float32Array;
-      for (let i = 0; i < speeds.length; i++) {
-        let y = arr[i * 3 + 1] - speeds[i] * dt * k;
-        if (y < -0.2) y = 7.2;
-        const drift = Math.sin(t * 0.6 + bases[i * 2]) * 0.12 * k;
-        const r = bases[i * 2 + 1];
-        const a = Math.atan2(arr[i * 3], arr[i * 3 + 2]) + dt * 0.08;
-        arr[i * 3] = Math.sin(a) * r + drift;
-        arr[i * 3 + 1] = y;
-        arr[i * 3 + 2] = Math.cos(a) * r;
-      }
-      attr.needsUpdate = true;
+    // Snow falls + drifts in the vertex shader; only the uniforms move.
+    for (const s of snowPoints) {
+      s.material.uniforms.uTime.value = t;
+      s.material.uniforms.uMotion.value = k;
     }
   }
 
@@ -792,7 +820,7 @@ export function createThemeDecorations(
       gsap.killTweensOf(r.scale);
       gsap.killTweensOf(r.position);
     });
-    for (const s of snowPoints) gsap.killTweensOf(s.points.material);
+    for (const s of snowPoints) gsap.killTweensOf(s.material.uniforms.uOpacity);
     disposables.forEach(d => d.dispose());
     group.removeFromParent();
   }
