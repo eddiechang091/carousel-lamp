@@ -4,8 +4,8 @@ import svgr from "vite-plugin-svgr";
 import path from "path";
 
 export default defineConfig({
-  // Anna static-spa bundle: relative paths so bundle/index.html works
-  // wherever the host serves it from.
+  // Static-spa bundle: relative paths so bundle/index.html works
+  // wherever it is served from.
   base: "./",
   plugins: [
     react(),

@@ -1,14 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import {
   buildCaptionMessages,
   cleanCaption,
+  generateAiCaption,
   MAX_CAPTION_CHARS,
-} from "@/services/anna/caption";
-import {
-  getLlmService,
-  isVisionNotCapableError,
-  LlmVisionNotCapableError,
-} from "@/services/anna/llm";
+} from "@/services/otari/caption";
+import { getLlmService, LlmUnavailableError } from "@/services/otari/llm";
 
 describe("ai caption", () => {
   it("caps at 20 characters", () => {
@@ -45,30 +42,76 @@ describe("ai caption", () => {
     expect(blocks[1]).toEqual({ type: "image", data: dataUrl });
   });
 
-  it("detects the vision-not-capable fail-fast error", () => {
-    const err = new Error("host rejected call") as Error & { code?: string };
-    err.code = "APP_MODEL_NOT_VISION_CAPABLE";
-    expect(isVisionNotCapableError(err)).toBe(true);
-    expect(isVisionNotCapableError(new LlmVisionNotCapableError())).toBe(true);
-    expect(isVisionNotCapableError(new Error("boom"))).toBe(false);
-    expect(isVisionNotCapableError(null)).toBe(false);
-  });
+  describe("otari proxy client", () => {
+    const fetchMock = vi.fn();
 
-  it("is unavailable outside the Anna host, even with image content", async () => {
-    const llm = await getLlmService();
-    expect(llm.available).toBe(false);
-    await expect(
-      llm.complete({
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Caption this" },
-              { type: "image", data: "data:image/jpeg;base64,AAAA" },
-            ],
-          },
-        ],
-      }),
-    ).rejects.toBeInstanceOf(Error);
+    beforeEach(() => {
+      fetchMock.mockReset();
+      vi.stubGlobal("fetch", fetchMock);
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it("posts the messages to /api/llm and returns the cleaned caption", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ text: '  "Golden hour glow"  ' }),
+      });
+      const caption = await generateAiCaption({
+        imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
+        locale: "en",
+        themeId: "default",
+      });
+      expect(caption).toBe("Golden hour glow");
+      expect(fetchMock).toHaveBeenCalledOnce();
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("/api/llm");
+      expect(init.method).toBe("POST");
+      const body = JSON.parse(init.body as string) as { messages: unknown[] };
+      expect(body.messages).toHaveLength(2);
+      expect(JSON.stringify(body)).not.toContain("OTARI_API_KEY");
+    });
+
+    it("throws LlmUnavailableError with the proxy message on a 503", async () => {
+      fetchMock.mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({ error: "AI captions are not configured yet" }),
+      });
+      const llm = await getLlmService();
+      expect(llm.available).toBe(true);
+      await expect(
+        llm.complete({ messages: [{ role: "user", content: "hi" }] }),
+      ).rejects.toThrowError(LlmUnavailableError);
+      await expect(
+        llm.complete({ messages: [{ role: "user", content: "hi" }] }),
+      ).rejects.toThrowError("not configured yet");
+    });
+
+    it("throws LlmUnavailableError on a network failure", async () => {
+      fetchMock.mockRejectedValue(new TypeError("fetch failed"));
+      const llm = await getLlmService();
+      await expect(
+        llm.complete({ messages: [{ role: "user", content: "hi" }] }),
+      ).rejects.toBeInstanceOf(LlmUnavailableError);
+    });
+
+    it("throws when the proxy returns an empty caption", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ text: "   " }),
+      });
+      await expect(
+        generateAiCaption({
+          imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
+          locale: "en",
+          themeId: "default",
+        }),
+      ).rejects.toThrowError("empty");
+    });
   });
 });

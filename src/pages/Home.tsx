@@ -44,8 +44,8 @@ import { convertHeic, isHeicFile } from '@/lib/heic';
 import { readSavedView, readMusicPref, saveMusicPref, readThemePref, saveThemePref } from '@/lib/view-storage';
 import { THEMES, normalizeThemeMode, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
 import { useI18n } from '@/i18n';
-import { getLlmService, LlmUnavailableError, LlmVisionNotCapableError } from '@/services/anna/llm';
-import { generateAiCaption } from '@/services/anna/caption';
+import { LlmUnavailableError } from '@/services/otari/llm';
+import { generateAiCaption } from '@/services/otari/caption';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 
@@ -106,20 +106,6 @@ export default function Home() {
   );
   const [captionDraft, setCaptionDraft] = useState('');
   const [captionBusy, setCaptionBusy] = useState(false);
-  const [llmAvailable, setLlmAvailable] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    getLlmService()
-      .then((llm) => {
-        if (mounted) setLlmAvailable(llm.available);
-      })
-      .catch(() => {
-        if (mounted) setLlmAvailable(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
   const memoriesRef = useRef(memories);
   useEffect(() => { memoriesRef.current = memories; }, [memories]);
   useEffect(() => {
@@ -524,10 +510,8 @@ export default function Home() {
       setNotice(t('ai.captionReady'));
       play('select');
     } catch (err) {
-      if (err instanceof LlmVisionNotCapableError) {
-        setNotice(t('ai.captionVisionNeeded'));
-      } else if (err instanceof LlmUnavailableError) {
-        setNotice(t('ai.captionUnavailable'));
+      if (err instanceof LlmUnavailableError) {
+        setNotice(err.message || t('ai.captionUnavailable'));
       } else {
         setNotice(t('ai.captionFailed'));
       }
@@ -674,19 +658,17 @@ export default function Home() {
             >
               <X />
             </Button>
-            {llmAvailable && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="caption-ai"
-                aria-label={t('a11y.aiCaption')}
-                disabled={captionBusy || memories[selected].empty}
-                onClick={() => void generateCaption()}
-              >
-                <Sparkles />
-                {captionBusy ? t('ai.captionGenerating') : t('action.aiCaption')}
-              </Button>
-            )}
+            <Button
+              size="sm"
+              variant="ghost"
+              className="caption-ai"
+              aria-label={t('a11y.aiCaption')}
+              disabled={captionBusy}
+              onClick={() => void generateCaption()}
+            >
+              <Sparkles />
+              {captionBusy ? t('ai.captionGenerating') : t('action.aiCaption')}
+            </Button>
           </div>
           <div className="photo-action-row">
             <Button onClick={() => void openEditor()}>

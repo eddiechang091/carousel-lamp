@@ -3,10 +3,11 @@ import type { LlmMessage, LlmContentBlock } from "./llm";
 import type { Locale } from "@/i18n";
 import type { ThemeId } from "@/lib/themes";
 
-// AI caption for a polaroid: the model looks at the photo (Anna
-// llm.complete vision, host >= 1.1.0-beta.169) and writes one poetic line.
-// The result fills the caption draft — the user edits it and saves with
-// the existing Save button. Nothing is auto-persisted.
+// AI caption for a polaroid: the model looks at the photo (Otari
+// chat completions with image input, via the /api/llm proxy) and
+// writes one poetic line. The result fills the caption draft — the
+// user edits it and saves with the existing Save button. Nothing is
+// auto-persisted.
 
 export const MAX_CAPTION_CHARS = 20;
 

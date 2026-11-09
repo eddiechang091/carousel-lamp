@@ -9,17 +9,12 @@ A web-based 3D photo carousel lamp built with React, Three.js, and Vite. Hang yo
 - **3D carousel scene** — procedurally built in Three.js: candy-cane column, scalloped canopy, hanging photo frames, light shafts, and a contact-shadow halo
 - **Photo management** — drag photos onto frames, crop and position them, export polaroid-style images, swap slots by drag-and-drop; photos are stored locally in IndexedDB (never uploaded)
 - **Night mode** — toggle atmospheric internal lighting with warm beam volumes and rim glow
-- **Holiday themes** — four themes that auto-activate by date, each with 3D decorations and a 5-second opening canvas animation:
-  | Theme | Active window | Opening animation |
-  |---|---|---|
-  | 🎃 Halloween | Oct 25 – Nov 4 | Dancing clown with trick-or-treat bucket, ghosts, bats, spider webs, skeletons |
-  | 🎄 Christmas | Dec 20 – Dec 30 | Santa sleigh with 8 reindeer flying in an arc, falling snow |
-  | 🧨 Lunar New Year | ~3 days before – 7 days after CNY | Chinese dragon, fireworks bursts, red lanterns |
-  | ✨ Classic (default) | All other dates | — |
+- **Holiday themes** — 14 festival themes (New Year's Day, Valentine's Day, Spring Festival, Carnival, St. Patrick's Day, April Fools' Day, Easter, Mother's Day, Dragon Boat Festival, Mid-Autumn Festival, Halloween, Diwali, Thanksgiving, Christmas) that auto-activate by date, each with 3D decorations
 - **Mood captions** — handwriting-style text rendered on each polaroid border
+- **AI captions** — the caption editor has an AI button: the model looks at the selected photo and drafts one poetic caption (≤ 20 characters, current language); the user edits it and saves. Served by the `/api/llm` proxy (see below) — photos are still never uploaded anywhere except to the model for that one caption
 - **Background music** — procedural music-box melody, toggleable
 - **Multilingual** — English, French, Spanish, 中文
-- **Fully offline** — no backend, no uploads, no accounts
+- **Photos stay local** — photos are stored in IndexedDB and never uploaded, except the one photo preview sent to the AI model when you tap the AI caption button
 
 ---
 
@@ -56,8 +51,6 @@ carousel-lamp/
 │   │   ├── carousel-ornaments.ts # Horses, poles, garden details
 │   │   ├── carousel-motion.ts    # Rotation physics + wind gust system
 │   │   ├── theme-decorations.ts  # Holiday 3D decoration layers
-│   │   ├── theme-intro.ts        # 5-second canvas opening animations
-│   │   ├── memory-projections.ts # Night-sky prismatic star particles
 │   │   ├── themes.ts             # Colour palettes + auto-detect logic
 │   │   ├── photos.ts             # Crop math, polaroid export
 │   │   ├── photo-storage.ts      # IndexedDB persistence
@@ -66,12 +59,16 @@ carousel-lamp/
 │   │   ├── music-box.ts          # Procedural music-box melody
 │   │   ├── heic.ts               # HEIC → JPEG conversion wrapper
 │   │   └── utils.ts              # Tailwind class merge helper
+│   ├── services/
+│   │   └── otari/                # AI caption client: prompt builder + /api/llm fetch client
 │   ├── pages/
 │   │   └── Home.tsx      # Main page: all UI controls and carousel integration
 │   ├── __tests__/        # Vitest unit + component tests
 │   ├── App.tsx
 │   ├── main.tsx
 │   └── routes.tsx
+├── api/
+│   └── llm.ts            # Vercel serverless proxy: POST /api/llm → Otari chat completions
 ├── .gitignore
 ├── .npmrc
 ├── biome.json
@@ -113,7 +110,7 @@ The app opens at `http://localhost:5173`.
 pnpm build
 ```
 
-Output goes to `dist/`.
+Output goes to `bundle/`.
 
 ### Preview the production build
 
@@ -128,59 +125,85 @@ pnpm preview
 | Script | Description |
 |---|---|
 | `pnpm dev` | Start Vite dev server |
-| `pnpm build` | Type-check then build the Anna bundle into `bundle/` |
+| `pnpm build` | Type-check then build into `bundle/` |
 | `pnpm preview` | Serve the `bundle/` folder locally |
 | `pnpm typecheck` | Run `tsc --noEmit` without bundling |
 | `pnpm test` | Run unit + component tests with Vitest |
 | `pnpm test:browser` | Run browser (Playwright) tests |
 | `pnpm lint` | Lint `src/` with Biome |
-| `pnpm validate` | `anna-app validate --strict` (needs the Anna CLI) |
-| `pnpm harness` | Run the Anna local harness on port 5192 (needs the Anna CLI) |
 
 ---
 
 ## Environment variables
 
-All variables are optional. Create a `.env.local` file in the project root to set them.
+### Browser (optional, `VITE_*`)
+
+Create a `.env.local` file in the project root to set them.
 
 | Variable | Description |
 |---|---|
 | `VITE_SENTRY_DSN` | Sentry DSN for error reporting. Omit to disable Sentry. |
+
+### Server — AI captions via Otari (required for the AI button)
+
+These are read **only** by the `api/llm.ts` serverless function. They are
+never bundled into the frontend and never leave the server. Set them in
+the Vercel dashboard: **Project → Settings → Environment Variables**
+(Production), then redeploy. For local function runs with `vercel dev`,
+put them in `.env.local` (never commit that file).
+
+| Variable | Required | Description |
+|---|---|---|
+| `OTARI_API_KEY` | Yes | Otari API key (`otk_…`, from the Otari dashboard → Keys). |
+| `OTARI_MODEL` | Yes | Model in `provider/model` form (e.g. `deepseek/deepseek-v4-pro-0813`). Pick one from the Otari dashboard → Models page. No model ID is hardcoded in the repo. |
+| `OTARI_FALLBACK_MODEL` | No | Second model, same `provider/model` form. If the primary model call fails, the proxy retries once with this one (multi-provider routing). |
+| `OTARI_BASE_URL` | No | Otari API base URL. Default `https://api.otari.ai/api/v1` (US accounts). EU accounts use `https://eu.api.otari.ai/api/v1` — a key from the wrong region returns HTTP 421. |
+
+Without `OTARI_API_KEY` / `OTARI_MODEL`, `/api/llm` answers `503` with a
+clear setup message and the AI button shows that message; everything
+else in the app keeps working.
+
+---
+
+## AI captions (Otari)
+
+    React app --POST /api/llm {messages}--> Vercel function api/llm.ts
+        --Bearer OTARI_API_KEY--> Otari chat completions
+
+- The caption editor's AI button sends the selected photo's 440×520 JPEG
+  preview to the model as an OpenAI-style `image_url` part, together with
+  a prompt asking for one poetic caption (≤ 20 characters, current
+  language). The result fills the caption draft; the user edits it and
+  saves with the existing Save button. Nothing is auto-persisted.
+- The browser never sees the API key and never names a model — both live
+  server-side only. The proxy logs only the outcome and the model used,
+  never request bodies or the key.
+
+---
+
+## Deploying to Vercel
+
+Project: **carousel-lamp**. The repo has a `vercel.json`
+(`pnpm build` → `bundle/`, serverless functions in `api/`).
+
+- **From GitHub (recommended):** import the repo in the Vercel dashboard,
+  set the four `OTARI_*` variables above, deploy. Pushes to `main` deploy
+  automatically.
+- **From a local build:** `pnpm build`, then deploy `bundle/` plus
+  `api/llm.ts` as a file deployment (the `vercel-deploy-app.py` flow in
+  the workspace connector scripts does this: static files + the function,
+  SSO protection disabled).
+
+After deploying, check two things: the app opens at the deployment URL,
+and `POST /api/llm` answers `503` with the setup message until the key
+and model are set (that proves the proxy is wired); with a key and a
+vision-capable model set, the AI caption button generates a line.
 
 ---
 
 ## Browser support
 
 Modern evergreen browsers with **WebGL 2** support (Chrome 90+, Firefox 90+, Safari 15+, Edge 90+). HEIC photo conversion requires a browser that supports `OffscreenCanvas` and Web Workers.
-
----
-
-## Anna
-
-Carousel Lamp is a **UI-only Anna App**:
-
-    React 18 + TypeScript + Vite
-        -> Anna static-spa bundle
-        -> Anna App Runtime
-        -> Anna Host API (anna.llm.complete)
-
-- No server. Photos stay in the browser (IndexedDB, never uploaded).
-- Outside the Anna host the app runs in standalone mode and the LLM
-  reports as unavailable; inside Anna it uses the Host API.
-- `app.json` — CLI project identity (slug, name, version).
-- `manifest.json` — schema 2, UI-only, least-privilege permissions
-  (`llm.complete` only for now).
-- `src/services/anna/` — runtime connection + `LlmService` wrapper (text and
-  image content blocks) + AI caption generation. AI behavior: the caption
-  editor has an AI button — the model looks at the selected photo and drafts
-  one poetic caption (≤ 20 characters, current language); the user edits it
-  and saves with the existing Save button.
-
-Publish flow (runs on a machine with the Anna CLI — `anna-app` is not
-installed on the build VM):
-
-    pnpm build → anna-app validate --strict → publish → install test
-    → submit-review → release
 
 ---
 

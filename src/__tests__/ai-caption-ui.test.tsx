@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { I18nProvider, setLocale } from "@/i18n";
 import { AppWrapper } from "@/components/common/PageMeta";
 import Home from "@/pages/Home";
@@ -9,7 +10,6 @@ import Home from "@/pages/Home";
 const selectHooks = vi.hoisted(() => ({
   onSelect: null as ((index: number) => void) | null,
   complete: vi.fn(),
-  llmAvailable: true,
 }));
 
 vi.mock("@/lib/carousel-scene", () => ({
@@ -58,12 +58,12 @@ vi.mock("@/lib/heic", () => ({
   convertHeic: vi.fn(),
 }));
 
-vi.mock("@/services/anna/llm", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/services/anna/llm")>();
+vi.mock("@/services/otari/llm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/otari/llm")>();
   return {
     ...actual,
     getLlmService: vi.fn(async () => ({
-      available: selectHooks.llmAvailable,
+      available: true,
       complete: selectHooks.complete,
     })),
   };
@@ -85,24 +85,25 @@ async function selectFirstFrame() {
 describe("ai caption button", () => {
   beforeEach(() => {
     setLocale("en");
-    selectHooks.llmAvailable = true;
     selectHooks.complete.mockReset();
   });
 
-  it("shows the AI button when the LLM is available, disabled on an empty frame", async () => {
+  it("is always shown now that the host gate is gone", async () => {
     await selectFirstFrame();
     const button = screen.getByRole("button", {
       name: "Generate a poetic caption with AI",
     });
     expect(button).toBeInTheDocument();
-    expect(button).toBeDisabled();
+    expect(button).toBeEnabled();
   });
 
-  it("hides the AI button when the LLM is unavailable (standalone web)", async () => {
-    selectHooks.llmAvailable = false;
+  it("shows the empty-frame notice and never calls the LLM on an empty frame", async () => {
     await selectFirstFrame();
-    expect(
-      screen.queryByRole("button", { name: "Generate a poetic caption with AI" }),
-    ).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole("button", { name: "Generate a poetic caption with AI" }),
+    );
+    await screen.findByText("This frame is empty — add a photo or a caption first");
+    expect(selectHooks.complete).not.toHaveBeenCalled();
   });
 });
