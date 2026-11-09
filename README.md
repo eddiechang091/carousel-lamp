@@ -128,14 +128,12 @@ pnpm preview
 | Script | Description |
 |---|---|
 | `pnpm dev` | Start Vite dev server |
-| `pnpm build` | Type-check then build the Anna bundle into `bundle/` |
+| `pnpm build` | Type-check then build into `bundle/` |
 | `pnpm preview` | Serve the `bundle/` folder locally |
 | `pnpm typecheck` | Run `tsc --noEmit` without bundling |
 | `pnpm test` | Run unit + component tests with Vitest |
 | `pnpm test:browser` | Run browser (Playwright) tests |
 | `pnpm lint` | Lint `src/` with Biome |
-| `pnpm validate` | `anna-app validate --strict` (needs the Anna CLI) |
-| `pnpm harness` | Run the Anna local harness on port 5192 (needs the Anna CLI) |
 
 ---
 
@@ -152,35 +150,6 @@ All variables are optional. Create a `.env.local` file in the project root to se
 ## Browser support
 
 Modern evergreen browsers with **WebGL 2** support (Chrome 90+, Firefox 90+, Safari 15+, Edge 90+). HEIC photo conversion requires a browser that supports `OffscreenCanvas` and Web Workers.
-
----
-
-## Anna
-
-Carousel Lamp is a **UI-only Anna App**:
-
-    React 18 + TypeScript + Vite
-        -> Anna static-spa bundle
-        -> Anna App Runtime
-        -> Anna Host API (anna.llm.complete)
-
-- No server. Photos stay in the browser (IndexedDB, never uploaded).
-- Outside the Anna host the app runs in standalone mode and the LLM
-  reports as unavailable; inside Anna it uses the Host API.
-- `app.json` — CLI project identity (slug, name, version).
-- `manifest.json` — schema 2, UI-only, least-privilege permissions
-  (`llm.complete` only for now).
-- `src/services/anna/` — runtime connection + `LlmService` wrapper (text and
-  image content blocks) + AI caption generation. AI behavior: the caption
-  editor has an AI button — the model looks at the selected photo and drafts
-  one poetic caption (≤ 20 characters, current language); the user edits it
-  and saves with the existing Save button.
-
-Publish flow (runs on a machine with the Anna CLI — `anna-app` is not
-installed on the build VM):
-
-    pnpm build → anna-app validate --strict → publish → install test
-    → submit-review → release
 
 ---
 

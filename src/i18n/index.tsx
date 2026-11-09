@@ -99,9 +99,7 @@ const en: Entry = {
   'ai.captionGenerating': 'Dreaming up a line…',
   'ai.captionReady': 'AI caption ready — edit it, then save',
   'ai.captionFailed': "Couldn't dream up a caption — try again",
-  'ai.captionUnavailable': 'AI captions need Anna — open this app in Anna to use them',
-  'ai.captionVisionNeeded':
-    "Your Anna model can't see images — switch to a vision model in Anna and try again",
+  'ai.captionUnavailable': 'AI captions are unavailable right now — check the Otari setup and try again',
   'theme.auto': 'Auto',
   'theme.default': 'Classic',
   'theme.new-year': "New Year's Day",
@@ -273,9 +271,7 @@ const fr: Entry = {
   'ai.captionReady': 'Légende IA prête — modifiez-la puis enregistrez',
   'ai.captionFailed': 'Impossible de créer une légende — réessayez',
   'ai.captionUnavailable':
-    'Les légendes IA nécessitent Anna — ouvrez cette app dans Anna pour les utiliser',
-  'ai.captionVisionNeeded':
-    'Votre modèle Anna ne voit pas les images — choisissez un modèle avec vision dans Anna puis réessayez',
+    'Les légendes IA sont indisponibles pour le moment — vérifiez la configuration Otari puis réessayez',
   'theme.auto': 'Auto',
   'theme.default': 'Classique',
   'theme.new-year': "Jour de l'An",
@@ -444,9 +440,7 @@ const es: Entry = {
   'ai.captionReady': 'Frase lista — edítala y luego guarda',
   'ai.captionFailed': 'No se pudo crear la frase — inténtalo de nuevo',
   'ai.captionUnavailable':
-    'Las frases IA necesitan Anna — abre esta app en Anna para usarlas',
-  'ai.captionVisionNeeded':
-    'Tu modelo de Anna no ve imágenes — cambia a un modelo con visión en Anna e inténtalo de nuevo',
+    'Las frases IA no están disponibles ahora mismo — revisa la configuración de Otari e inténtalo de nuevo',
   'theme.auto': 'Auto',
   'theme.default': 'Clásico',
   'theme.new-year': 'Año Nuevo',
@@ -594,8 +588,7 @@ const zh: Entry = {
   'ai.captionGenerating': '正在想一句…',
   'ai.captionReady': 'AI 短句已生成，改好后点保存',
   'ai.captionFailed': '没能生成短句，再试一次',
-  'ai.captionUnavailable': 'AI 短句需要 Anna，在 Anna 里打开这个应用才能用',
-  'ai.captionVisionNeeded': '你的 Anna 模型看不到图片，在 Anna 里换一个支持看图的模型再试',
+  'ai.captionUnavailable': 'AI 短句暂时不可用，请检查 Otari 配置后再试',
   'theme.auto': '自动',
   'theme.default': '经典游园',
   'theme.new-year': '元旦',

@@ -9,9 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:browser": "vitest --config vitest.browser.config.ts",
-    "lint": "biome lint ./src",
-    "validate": "anna-app validate --strict",
-    "harness": "anna-app dev --port 5192 --no-llm"
+    "lint": "biome lint ./src"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",
