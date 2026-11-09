@@ -30,57 +30,102 @@ type Floater = {
   finalZ?: number;
 };
 
+// ---------------------------------------------------------------------------
+// Shared resources: repeated decoration parts reuse one geometry / material /
+// texture instead of allocating one per instance (Halloween alone built 162
+// meshes with a fresh geometry + material each). Anything registered here
+// lives in SHARED and dispose() must never free it — the next theme's
+// layer reuses the same instances.
+// ---------------------------------------------------------------------------
+const geoCache = new Map<string, THREE.BufferGeometry>();
+const matCache = new Map<string, THREE.Material>();
+const texCache = new Map<string, THREE.CanvasTexture>();
+const SHARED = new WeakSet<object>();
+
+function sharedGeo<T extends THREE.BufferGeometry>(key: string, make: () => T): T {
+  const hit = geoCache.get(key) as T | undefined;
+  if (hit) return hit;
+  const g = make();
+  geoCache.set(key, g);
+  SHARED.add(g);
+  return g;
+}
+
+function sharedMat<T extends THREE.Material>(key: string, make: () => T): T {
+  const hit = matCache.get(key) as T | undefined;
+  if (hit) return hit;
+  const m = make();
+  matCache.set(key, m);
+  SHARED.add(m);
+  return m;
+}
+
+function sharedTex(key: string, make: () => THREE.CanvasTexture): THREE.CanvasTexture {
+  const hit = texCache.get(key);
+  if (hit) return hit;
+  const t = make();
+  texCache.set(key, t);
+  SHARED.add(t);
+  return t;
+}
+
+// Procedural pumpkin face — one shared 256px texture per variant (was 6).
+function pumpkinFaceTexture(faceVariant: number): THREE.CanvasTexture {
+  return sharedTex(`pumpkin-face-${faceVariant % 3}`, () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.clearRect(0, 0, 256, 256);
+    c.fillStyle = 'rgba(255,140,38,0.0)';
+    c.fillRect(0, 0, 256, 256);
+    c.fillStyle = '#141414';
+    if (faceVariant === 0) {
+      c.beginPath(); c.moveTo(80,96); c.lineTo(60,128); c.lineTo(100,128); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(176,96); c.lineTo(156,128); c.lineTo(196,128); c.closePath(); c.fill();
+      c.beginPath(); c.moveTo(60,166); for (let i=0;i<=5;i++) c.lineTo(60+i*28,166+(i%2===0?26:-8)); c.fill();
+    } else if (faceVariant === 1) {
+      c.beginPath(); c.arc(85,110,20,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(171,110,20,0,Math.PI*2); c.fill();
+      c.beginPath(); c.arc(128,165,38,0.1,Math.PI-0.1); c.closePath(); c.fill();
+      c.fillStyle='#f07818';
+      for (let i=0;i<5;i++) c.fillRect(94+i*14,152,10,18);
+    } else {
+      c.beginPath(); c.arc(85,110,20,Math.PI*1.1,Math.PI*1.9); c.closePath(); c.fill();
+      c.beginPath(); c.arc(171,110,20,Math.PI*1.1,Math.PI*1.9); c.closePath(); c.fill();
+      c.strokeStyle='#141414'; c.lineWidth=10; c.lineCap='round';
+      c.beginPath(); c.moveTo(60,100); c.lineTo(100,115); c.stroke();
+      c.beginPath(); c.moveTo(196,100); c.lineTo(156,115); c.stroke();
+      c.fillStyle='#141414'; c.beginPath(); c.moveTo(60,170);
+      for (let i=0;i<=8;i++) c.lineTo(60+i*17,170+(i%2===0?22:-8)); c.fill();
+    }
+    const faceTex = new THREE.CanvasTexture(cv);
+    faceTex.colorSpace = THREE.SRGBColorSpace;
+    return faceTex;
+  });
+}
+
 function pumpkin(faceVariant: number) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.22, 24, 18),
-    new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05 }),
+    sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 24, 18)),
+    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05 })),
   );
   body.scale.set(1, 0.82, 1); g.add(body);
   // Two side-lobes for a rounder look
   for (const sx of [-0.1, 0.1]) {
     const lobe = new THREE.Mesh(
-      new THREE.SphereGeometry(0.19, 16, 12),
-      new THREE.MeshStandardMaterial({ color: '#e06810', roughness: 0.6 }),
+      sharedGeo('pumpkin-lobe', () => new THREE.SphereGeometry(0.19, 16, 12)),
+      sharedMat('pumpkin-lobe', () => new THREE.MeshStandardMaterial({ color: '#e06810', roughness: 0.6 })),
     );
     lobe.position.set(sx, 0, 0); lobe.scale.set(1, 0.78, 0.9); g.add(lobe);
   }
   const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.03, 0.05, 0.1, 8),
-    new THREE.MeshStandardMaterial({ color: '#3f6b2a', roughness: 0.8 }),
+    sharedGeo('pumpkin-stem', () => new THREE.CylinderGeometry(0.03, 0.05, 0.1, 8)),
+    sharedMat('pumpkin-stem', () => new THREE.MeshStandardMaterial({ color: '#3f6b2a', roughness: 0.8 })),
   );
   stem.position.y = 0.2; g.add(stem);
-  // Procedural face on canvas
-  const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
-  const c = cv.getContext('2d')!;
-  c.clearRect(0, 0, 256, 256);
-  c.fillStyle = 'rgba(255,140,38,0.0)';
-  c.fillRect(0, 0, 256, 256);
-  c.fillStyle = '#141414';
-  if (faceVariant === 0) {
-    c.beginPath(); c.moveTo(80,96); c.lineTo(60,128); c.lineTo(100,128); c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(176,96); c.lineTo(156,128); c.lineTo(196,128); c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(60,166); for (let i=0;i<=5;i++) c.lineTo(60+i*28,166+(i%2===0?26:-8)); c.fill();
-  } else if (faceVariant === 1) {
-    c.beginPath(); c.arc(85,110,20,0,Math.PI*2); c.fill();
-    c.beginPath(); c.arc(171,110,20,0,Math.PI*2); c.fill();
-    c.beginPath(); c.arc(128,165,38,0.1,Math.PI-0.1); c.closePath(); c.fill();
-    c.fillStyle='#f07818';
-    for (let i=0;i<5;i++) c.fillRect(94+i*14,152,10,18);
-  } else {
-    c.beginPath(); c.arc(85,110,20,Math.PI*1.1,Math.PI*1.9); c.closePath(); c.fill();
-    c.beginPath(); c.arc(171,110,20,Math.PI*1.1,Math.PI*1.9); c.closePath(); c.fill();
-    c.strokeStyle='#141414'; c.lineWidth=10; c.lineCap='round';
-    c.beginPath(); c.moveTo(60,100); c.lineTo(100,115); c.stroke();
-    c.beginPath(); c.moveTo(196,100); c.lineTo(156,115); c.stroke();
-    c.fillStyle='#141414'; c.beginPath(); c.moveTo(60,170);
-    for (let i=0;i<=8;i++) c.lineTo(60+i*17,170+(i%2===0?22:-8)); c.fill();
-  }
-  const faceTex = new THREE.CanvasTexture(cv);
-  faceTex.colorSpace = THREE.SRGBColorSpace;
   const face = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.34, 0.34),
-    new THREE.MeshBasicMaterial({ map: faceTex, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false }),
+    sharedGeo('pumpkin-face-plane', () => new THREE.PlaneGeometry(0.34, 0.34)),
+    sharedMat(`pumpkin-face-mat-${faceVariant % 3}`, () => new THREE.MeshBasicMaterial({ map: pumpkinFaceTexture(faceVariant), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false })),
   );
   face.position.set(0, -0.01, 0.205); g.add(face);
   const glow = new THREE.PointLight('#ff8c26', 1.8, 1.8, 2);
@@ -90,28 +135,30 @@ function pumpkin(faceVariant: number) {
 
 function ghost() {
   const g = new THREE.Group();
-  const pts: THREE.Vector2[] = [];
-  for (let i = 0; i <= 10; i++) {
-    const a = (i / 10) * Math.PI * 0.52;
-    pts.push(new THREE.Vector2(Math.sin(a) * 0.18, Math.cos(a) * 0.2 + 0.1));
-  }
-  pts.push(new THREE.Vector2(0.16, 0.02));
-  for (let i = 1; i <= 8; i++) {
-    const f = i / 8;
-    pts.push(new THREE.Vector2(0.16 + Math.sin(f * Math.PI * 4) * 0.03 * (1 - f), 0.02 - f * 0.18));
-  }
-  const bodyMat = new THREE.MeshStandardMaterial({
+  const body = new THREE.Mesh(sharedGeo('ghost-body', () => {
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i <= 10; i++) {
+      const a = (i / 10) * Math.PI * 0.52;
+      pts.push(new THREE.Vector2(Math.sin(a) * 0.18, Math.cos(a) * 0.2 + 0.1));
+    }
+    pts.push(new THREE.Vector2(0.16, 0.02));
+    for (let i = 1; i <= 8; i++) {
+      const f = i / 8;
+      pts.push(new THREE.Vector2(0.16 + Math.sin(f * Math.PI * 4) * 0.03 * (1 - f), 0.02 - f * 0.18));
+    }
+    return new THREE.LatheGeometry(pts, 24);
+  }), sharedMat('ghost-body', () => new THREE.MeshStandardMaterial({
     color: '#ddeeff', transparent: true, opacity: 0.62,
     roughness: 0.2, emissive: '#99ccff', emissiveIntensity: 0.55, side: THREE.DoubleSide,
-  });
-  const body = new THREE.Mesh(new THREE.LatheGeometry(pts, 24), bodyMat);
+  })));
   g.add(body);
-  const eyeMat = new THREE.MeshBasicMaterial({ color: '#1a0a2e' });
+  const eyeMat = sharedMat('ghost-eye', () => new THREE.MeshBasicMaterial({ color: '#1a0a2e' }));
+  const pupilMat = sharedMat('ghost-pupil', () => new THREE.MeshBasicMaterial({ color: '#66aaff' }));
   for (const x of [-0.06, 0.06]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 8), eyeMat);
+    const eye = new THREE.Mesh(sharedGeo('ghost-eye', () => new THREE.SphereGeometry(0.025, 8, 8)), eyeMat);
     eye.position.set(x, 0.17, 0.14); g.add(eye);
     // glowing pupils
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.012, 6, 6), new THREE.MeshBasicMaterial({ color: '#66aaff' }));
+    const pupil = new THREE.Mesh(sharedGeo('ghost-pupil', () => new THREE.SphereGeometry(0.012, 6, 6)), pupilMat);
     pupil.position.set(x, 0.17, 0.155); g.add(pupil);
   }
   // inner glow point light
@@ -122,20 +169,22 @@ function ghost() {
 
 function bat() {
   const g = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: '#17111f', roughness: 0.8 });
-  const wingMat = new THREE.MeshStandardMaterial({ color: '#241a33', roughness: 0.75, side: THREE.DoubleSide });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), bodyMat);
+  const bodyMat = sharedMat('bat-body', () => new THREE.MeshStandardMaterial({ color: '#17111f', roughness: 0.8 }));
+  const wingMat = sharedMat('bat-wing', () => new THREE.MeshStandardMaterial({ color: '#241a33', roughness: 0.75, side: THREE.DoubleSide }));
+  const body = new THREE.Mesh(sharedGeo('bat-body', () => new THREE.SphereGeometry(0.035, 8, 8)), bodyMat);
   body.scale.set(1, 0.8, 1.3);
   g.add(body);
   const wings: THREE.Object3D[] = [];
   for (const side of [-1, 1]) {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(side * 0.16, 0.05);
-    shape.quadraticCurveTo(side * 0.1, -0.02, side * 0.07, 0);
-    shape.quadraticCurveTo(side * 0.05, -0.03, side * 0.02, -0.005);
-    shape.lineTo(0, 0);
-    const wing = new THREE.Mesh(new THREE.ShapeGeometry(shape), wingMat);
+    const wing = new THREE.Mesh(sharedGeo(`bat-wing-${side}`, () => {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.lineTo(side * 0.16, 0.05);
+      shape.quadraticCurveTo(side * 0.1, -0.02, side * 0.07, 0);
+      shape.quadraticCurveTo(side * 0.05, -0.03, side * 0.02, -0.005);
+      shape.lineTo(0, 0);
+      return new THREE.ShapeGeometry(shape);
+    }), wingMat);
     const pivot = new THREE.Group();
     pivot.add(wing);
     g.add(pivot);
@@ -147,7 +196,7 @@ function bat() {
 
 function spiderWeb(radius: number) {
   const g = new THREE.Group();
-  const mat = new THREE.LineBasicMaterial({ color: '#c8c8ff', transparent: true, opacity: 0.55 });
+  const mat = sharedMat('spiderweb', () => new THREE.LineBasicMaterial({ color: '#c8c8ff', transparent: true, opacity: 0.55 }));
   const spokeCount = 8;
   for (let i = 0; i < spokeCount; i++) {
     const a = (i / spokeCount) * Math.PI * 2;
@@ -168,16 +217,16 @@ function spiderWeb(radius: number) {
 
 function spider3d() {
   const g = new THREE.Group();
-  const dark = new THREE.MeshStandardMaterial({ color: '#1a0a2e', roughness: 0.7, emissive: '#330088', emissiveIntensity: 0.4 });
-  const abdomen = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), dark);
+  const dark = sharedMat('spider-dark', () => new THREE.MeshStandardMaterial({ color: '#1a0a2e', roughness: 0.7, emissive: '#330088', emissiveIntensity: 0.4 }));
+  const abdomen = new THREE.Mesh(sharedGeo('spider-abdomen', () => new THREE.SphereGeometry(0.05, 10, 8)), dark);
   abdomen.position.set(0, 0.06, 0); g.add(abdomen);
-  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), dark);
+  const thorax = new THREE.Mesh(sharedGeo('spider-thorax', () => new THREE.SphereGeometry(0.035, 10, 8)), dark);
   thorax.position.set(0, 0, 0); g.add(thorax);
   // 8 legs
   for (let i = 0; i < 4; i++) {
     for (const side of [-1, 1]) {
       const legGroup = new THREE.Group();
-      const seg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6), dark);
+      const seg1 = new THREE.Mesh(sharedGeo('spider-leg', () => new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6)), dark);
       seg1.position.set(side * 0.04, 0, 0); seg1.rotation.z = side * 0.8;
       legGroup.add(seg1);
       legGroup.position.y = 0;
@@ -185,9 +234,9 @@ function spider3d() {
     }
   }
   // red eyes
-  const eyeMat = new THREE.MeshBasicMaterial({ color: '#ff0000' });
+  const eyeMat = sharedMat('spider-eye', () => new THREE.MeshBasicMaterial({ color: '#ff0000' }));
   for (let i = 0; i < 4; i++) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.008, 6, 6), eyeMat);
+    const eye = new THREE.Mesh(sharedGeo('spider-eye', () => new THREE.SphereGeometry(0.008, 6, 6)), eyeMat);
     eye.position.set((-1.5 + i) * 0.012, 0.004, 0.034);
     g.add(eye);
   }
@@ -196,23 +245,23 @@ function spider3d() {
 
 function treatsBucket() {
   const g = new THREE.Group();
-  const orangeMat = new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.6 });
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.11, 0.2, 20), orangeMat);
+  const orangeMat = sharedMat('bucket-orange', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.6 }));
+  const body = new THREE.Mesh(sharedGeo('bucket-body', () => new THREE.CylinderGeometry(0.14, 0.11, 0.2, 20)), orangeMat);
   body.position.y = 0.1; g.add(body);
   // pumpkin face cutout — use emissive plane
-  const faceMat = new THREE.MeshStandardMaterial({ color: '#141414', emissive: '#ff6600', emissiveIntensity: 0.9 });
-  const faceDecal = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.1), faceMat);
+  const faceMat = sharedMat('bucket-face', () => new THREE.MeshStandardMaterial({ color: '#141414', emissive: '#ff6600', emissiveIntensity: 0.9 }));
+  const faceDecal = new THREE.Mesh(sharedGeo('bucket-face', () => new THREE.PlaneGeometry(0.12, 0.1)), faceMat);
   faceDecal.position.set(0, 0.11, 0.142); g.add(faceDecal);
   // handle
-  const handleMat = new THREE.MeshStandardMaterial({ color: '#5c3a1e', roughness: 0.8 });
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.008, 6, 20, Math.PI), handleMat);
+  const handleMat = sharedMat('bucket-handle', () => new THREE.MeshStandardMaterial({ color: '#5c3a1e', roughness: 0.8 }));
+  const handle = new THREE.Mesh(sharedGeo('bucket-handle', () => new THREE.TorusGeometry(0.1, 0.008, 6, 20, Math.PI)), handleMat);
   handle.position.y = 0.21; handle.rotation.x = Math.PI / 2; g.add(handle);
   // candy spills
   const candyColors = ['#ff4466', '#44ffaa', '#ffdd22', '#aa44ff'];
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    const candy = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6),
-      new THREE.MeshStandardMaterial({ color: candyColors[i], roughness: 0.3, emissive: candyColors[i], emissiveIntensity: 0.3 }));
+    const candy = new THREE.Mesh(sharedGeo('bucket-candy', () => new THREE.SphereGeometry(0.025, 8, 6)),
+      sharedMat(`bucket-candy-${candyColors[i]}`, () => new THREE.MeshStandardMaterial({ color: candyColors[i], roughness: 0.3, emissive: candyColors[i], emissiveIntensity: 0.3 })));
     candy.position.set(Math.cos(a) * 0.08, 0.22, Math.sin(a) * 0.08);
     g.add(candy);
   }
@@ -221,40 +270,40 @@ function treatsBucket() {
 
 function skeleton3d() {
   const g = new THREE.Group();
-  const bone = new THREE.MeshStandardMaterial({ color: '#d8d8d8', roughness: 0.5, emissive: '#99ffaa', emissiveIntensity: 0.12 });
+  const bone = sharedMat('skeleton-bone', () => new THREE.MeshStandardMaterial({ color: '#d8d8d8', roughness: 0.5, emissive: '#99ffaa', emissiveIntensity: 0.12 }));
   // skull
-  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 12), bone);
+  const skull = new THREE.Mesh(sharedGeo('skeleton-skull', () => new THREE.SphereGeometry(0.1, 16, 12)), bone);
   skull.position.y = 0.9; g.add(skull);
   // jaw
-  const jaw = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.09), bone);
+  const jaw = new THREE.Mesh(sharedGeo('skeleton-jaw', () => new THREE.BoxGeometry(0.12, 0.04, 0.09)), bone);
   jaw.position.set(0, 0.78, 0.02); g.add(jaw);
   // spine
-  const spine = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 8), bone);
+  const spine = new THREE.Mesh(sharedGeo('skeleton-spine', () => new THREE.CylinderGeometry(0.025, 0.025, 0.4, 8)), bone);
   spine.position.y = 0.52; g.add(spine);
   // ribs (3 pairs)
   for (let i = 0; i < 3; i++) {
     const ry = 0.72 - i * 0.1;
     for (const side of [-1, 1]) {
-      const rib = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.012, 6, 16, Math.PI), bone);
+      const rib = new THREE.Mesh(sharedGeo('skeleton-rib', () => new THREE.TorusGeometry(0.1, 0.012, 6, 16, Math.PI)), bone);
       rib.position.set(side * 0.04, ry, 0); rib.rotation.y = side * Math.PI / 2;
       g.add(rib);
     }
   }
   // pelvis
-  const pelvis = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 6, 20, Math.PI * 2), bone);
+  const pelvis = new THREE.Mesh(sharedGeo('skeleton-pelvis', () => new THREE.TorusGeometry(0.1, 0.02, 6, 20, Math.PI * 2)), bone);
   pelvis.position.y = 0.32; pelvis.rotation.x = Math.PI / 2; g.add(pelvis);
   // arms
   for (const side of [-1, 1]) {
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 8), bone);
+    const upper = new THREE.Mesh(sharedGeo('skeleton-arm-upper', () => new THREE.CylinderGeometry(0.018, 0.018, 0.22, 8)), bone);
     upper.position.set(side * 0.22, 0.6, 0); upper.rotation.z = side * 0.4; g.add(upper);
-    const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.22, 8), bone);
+    const lower = new THREE.Mesh(sharedGeo('skeleton-arm-lower', () => new THREE.CylinderGeometry(0.015, 0.015, 0.22, 8)), bone);
     lower.position.set(side * 0.3, 0.42, 0); lower.rotation.z = side * 0.8; g.add(lower);
   }
   // legs
   for (const side of [-1, 1]) {
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.28, 8), bone);
+    const upper = new THREE.Mesh(sharedGeo('skeleton-leg-upper', () => new THREE.CylinderGeometry(0.025, 0.025, 0.28, 8)), bone);
     upper.position.set(side * 0.07, 0.17, 0); g.add(upper);
-    const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.28, 8), bone);
+    const lower = new THREE.Mesh(sharedGeo('skeleton-leg-lower', () => new THREE.CylinderGeometry(0.02, 0.02, 0.28, 8)), bone);
     lower.position.set(side * 0.07, -0.12, 0); g.add(lower);
   }
   return g;
@@ -263,14 +312,14 @@ function skeleton3d() {
 function giftBox(i: number) {
   const wrapColors = ['#d23a2e', '#1f7a4d', '#2a5f9e', '#f0c24b'];
   const g = new THREE.Group();
-  const boxMat = new THREE.MeshStandardMaterial({ color: wrapColors[i % wrapColors.length], roughness: 0.5 });
-  const ribbonMat = new THREE.MeshStandardMaterial({ color: '#f0c24b', roughness: 0.35, metalness: 0.5 });
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.14), boxMat));
-  const band = new THREE.Mesh(new THREE.BoxGeometry(0.145, 0.125, 0.035), ribbonMat);
+  const boxMat = sharedMat(`giftbox-wrap-${i % wrapColors.length}`, () => new THREE.MeshStandardMaterial({ color: wrapColors[i % wrapColors.length], roughness: 0.5 }));
+  const ribbonMat = sharedMat('giftbox-ribbon', () => new THREE.MeshStandardMaterial({ color: '#f0c24b', roughness: 0.35, metalness: 0.5 }));
+  g.add(new THREE.Mesh(sharedGeo('giftbox-box', () => new THREE.BoxGeometry(0.14, 0.12, 0.14)), boxMat));
+  const band = new THREE.Mesh(sharedGeo('giftbox-band', () => new THREE.BoxGeometry(0.145, 0.125, 0.035)), ribbonMat);
   g.add(band);
-  const band2 = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.125, 0.145), ribbonMat);
+  const band2 = new THREE.Mesh(sharedGeo('giftbox-band2', () => new THREE.BoxGeometry(0.035, 0.125, 0.145)), ribbonMat);
   g.add(band2);
-  const bow = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 8), ribbonMat);
+  const bow = new THREE.Mesh(sharedGeo('giftbox-bow', () => new THREE.SphereGeometry(0.03, 8, 8)), ribbonMat);
   bow.position.y = 0.075;
   g.add(bow);
   return g;
@@ -278,14 +327,14 @@ function giftBox(i: number) {
 
 function christmasTree(size = 1) {
   const g = new THREE.Group();
-  const green = new THREE.MeshStandardMaterial({ color: '#1a5c2a', roughness: 0.7 });
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.03*size, 0.04*size, 0.12*size, 8),
-    new THREE.MeshStandardMaterial({ color: '#5c3a1e', roughness: 0.9 }));
+  const green = sharedMat('tree-green', () => new THREE.MeshStandardMaterial({ color: '#1a5c2a', roughness: 0.7 }));
+  const trunk = new THREE.Mesh(sharedGeo(`tree-trunk-${size}`, () => new THREE.CylinderGeometry(0.03*size, 0.04*size, 0.12*size, 8)),
+    sharedMat('tree-trunk', () => new THREE.MeshStandardMaterial({ color: '#5c3a1e', roughness: 0.9 })));
   trunk.position.y = 0.06*size; g.add(trunk);
   for (let tier = 0; tier < 3; tier++) {
     const r = (0.22 - tier * 0.055) * size;
     const h = 0.18 * size;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 20), green);
+    const cone = new THREE.Mesh(sharedGeo(`tree-cone-${tier}-${size}`, () => new THREE.ConeGeometry(r, h, 20)), green);
     cone.position.y = (0.17 + tier * 0.14) * size; g.add(cone);
   }
   // baubles
@@ -294,30 +343,32 @@ function christmasTree(size = 1) {
     const a = (i / 8) * Math.PI * 2;
     const tier = i % 3;
     const r2 = (0.14 - tier * 0.03) * size;
-    const b = new THREE.Mesh(new THREE.SphereGeometry(0.025*size, 8, 6),
-      new THREE.MeshStandardMaterial({ color: bc[i%4], roughness: 0.3, metalness: 0.5, emissive: bc[i%4], emissiveIntensity: 0.3 }));
+    const b = new THREE.Mesh(sharedGeo(`tree-bauble-${size}`, () => new THREE.SphereGeometry(0.025*size, 8, 6)),
+      sharedMat(`tree-bauble-${bc[i%4]}`, () => new THREE.MeshStandardMaterial({ color: bc[i%4], roughness: 0.3, metalness: 0.5, emissive: bc[i%4], emissiveIntensity: 0.3 })));
     b.position.set(Math.cos(a)*r2, (0.2+tier*0.14)*size, Math.sin(a)*r2); g.add(b);
   }
   // star on top
-  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.04*size),
-    new THREE.MeshStandardMaterial({ color: '#ffd700', emissive: '#ffd700', emissiveIntensity: 1.2, roughness: 0.1 }));
+  const star = new THREE.Mesh(sharedGeo(`tree-star-${size}`, () => new THREE.OctahedronGeometry(0.04*size)),
+    sharedMat('tree-star', () => new THREE.MeshStandardMaterial({ color: '#ffd700', emissive: '#ffd700', emissiveIntensity: 1.2, roughness: 0.1 })));
   star.position.y = 0.57*size; g.add(star);
   return g;
 }
 
 function candyCane() {
   const g = new THREE.Group();
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.3, 0),
-    new THREE.Vector3(0.04, 0.38, 0), new THREE.Vector3(0.1, 0.4, 0),
-  ]);
-  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 });
-  const stripeMat = new THREE.MeshStandardMaterial({ color: '#e82020', roughness: 0.4 });
-  const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.022, 10), mat);
+  const mat = sharedMat('candycane-white', () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4 }));
+  const stripeMat = sharedMat('candycane-red', () => new THREE.MeshStandardMaterial({ color: '#e82020', roughness: 0.4 }));
+  const tube = new THREE.Mesh(sharedGeo('candycane-tube', () => {
+    const curve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0.3, 0),
+      new THREE.Vector3(0.04, 0.38, 0), new THREE.Vector3(0.1, 0.4, 0),
+    ]);
+    return new THREE.TubeGeometry(curve, 24, 0.022, 10);
+  }), mat);
   g.add(tube);
   // stripe segments
   for (let i = 0; i < 6; i++) {
-    const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.011, 6, 16), stripeMat);
+    const stripe = new THREE.Mesh(sharedGeo('candycane-stripe', () => new THREE.TorusGeometry(0.022, 0.011, 6, 16)), stripeMat);
     stripe.position.y = i * 0.06;
     stripe.rotation.x = Math.PI / 2;
     g.add(stripe);
@@ -346,6 +397,8 @@ function getGlowMaterial(): THREE.SpriteMaterial {
       map: glowTexture, blending: THREE.AdditiveBlending,
       depthWrite: false, transparent: true, opacity: 0.85,
     });
+    SHARED.add(glowTexture);
+    SHARED.add(glowMaterial);
   }
   return glowMaterial;
 }
@@ -357,8 +410,8 @@ function lunarFireworkOrb() {
     const a = (i / 20) * Math.PI * 2;
     const r = 0.18 + Math.sin(i * 2.3) * 0.06;
     const col = colors[i % 4];
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 6),
-      new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.5, roughness: 0.1 }));
+    const orb = new THREE.Mesh(sharedGeo('firework-ball', () => new THREE.SphereGeometry(0.018, 6, 6)),
+      sharedMat(`firework-ball-${col}`, () => new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 1.5, roughness: 0.1 })));
     orb.position.set(Math.cos(a)*r, Math.sin(i*0.9)*0.08, Math.sin(a)*r); g.add(orb);
     // No PointLight per ball: 4 orbs x 20 balls was 80 lights. The emissive
     // balls plus one shared additive glow sprite below read the same.
@@ -372,27 +425,27 @@ function lunarFireworkOrb() {
 function lantern(withLight = false) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.14, 24, 18),
-    new THREE.MeshStandardMaterial({
+    sharedGeo('lantern-body', () => new THREE.SphereGeometry(0.14, 24, 18)),
+    sharedMat('lantern-body', () => new THREE.MeshStandardMaterial({
       color: '#d2222d', roughness: 0.45,
       emissive: '#ff4d2e', emissiveIntensity: 0.55,
-    }),
+    })),
   );
   body.scale.set(1, 0.82, 1);
   g.add(body);
-  const capMat = new THREE.MeshStandardMaterial({ color: '#f0c75e', roughness: 0.35, metalness: 0.5 });
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.075, 0.03, 16), capMat);
+  const capMat = sharedMat('lantern-gold', () => new THREE.MeshStandardMaterial({ color: '#f0c75e', roughness: 0.35, metalness: 0.5 }));
+  const cap = new THREE.Mesh(sharedGeo('lantern-cap', () => new THREE.CylinderGeometry(0.06, 0.075, 0.03, 16)), capMat);
   cap.position.y = 0.13;
   g.add(cap);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.025, 16), capMat);
+  const base = new THREE.Mesh(sharedGeo('lantern-base', () => new THREE.CylinderGeometry(0.05, 0.06, 0.025, 16)), capMat);
   base.position.y = -0.13;
   g.add(base);
-  const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.12, 6), capMat);
+  const cord = new THREE.Mesh(sharedGeo('lantern-cord', () => new THREE.CylinderGeometry(0.004, 0.004, 0.12, 6)), capMat);
   cord.position.y = -0.2;
   g.add(cord);
   const tassel = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.012, 0.02, 0.07, 8),
-    new THREE.MeshStandardMaterial({ color: '#d2222d', roughness: 0.6 }),
+    sharedGeo('lantern-tassel', () => new THREE.CylinderGeometry(0.012, 0.02, 0.07, 8)),
+    sharedMat('lantern-tassel', () => new THREE.MeshStandardMaterial({ color: '#d2222d', roughness: 0.6 })),
   );
   tassel.position.y = -0.29;
   g.add(tassel);
@@ -409,13 +462,13 @@ function lantern(withLight = false) {
 // 3D auspicious cloud: cluster of soft white spheres slow-drifting around the carousel.
 function cloud() {
   const g = new THREE.Group();
-  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, roughness: 0.95 });
+  const mat = sharedMat('cloud', () => new THREE.MeshStandardMaterial({ color: '#ffffff', transparent: true, opacity: 0.85, roughness: 0.95 }));
   const parts: [number, number, number, number][] = [
     [0, 0, 0, 0.12], [-0.11, 0.01, 0.02, 0.08], [0.1, 0.015, -0.02, 0.085],
     [0.03, 0.07, 0, 0.07], [-0.05, 0.06, -0.01, 0.055],
   ];
   for (const [x, y, z, r] of parts) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat);
+    const m = new THREE.Mesh(sharedGeo(`cloud-sphere-${r}`, () => new THREE.SphereGeometry(r, 16, 12)), mat);
     m.position.set(x, y, z);
     m.scale.z = 0.7;
     g.add(m);
@@ -532,11 +585,11 @@ export function createThemeDecorations(
     for (let i = 0; i < 12; i++) {
       const a = (i / 12) * Math.PI * 2 + 0.13;
       const b = new THREE.Mesh(
-        new THREE.SphereGeometry(0.055, 12, 10),
-        new THREE.MeshStandardMaterial({
+        sharedGeo('bauble-rim', () => new THREE.SphereGeometry(0.055, 12, 10)),
+        sharedMat(`bauble-rim-${baubleColors[i % 4]}`, () => new THREE.MeshStandardMaterial({
           color: baubleColors[i % 4], roughness: 0.22, metalness: 0.65,
           emissive: baubleColors[i % 4], emissiveIntensity: 0.3,
-        }),
+        })),
       );
       b.position.set(Math.sin(a) * 2.28, 4.62, Math.cos(a) * 2.28);
       add(b, 'sway', undefined, 'ambient');
