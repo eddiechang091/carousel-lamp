@@ -691,7 +691,7 @@ export function createThemeDecorations(
     snowPoints.push({ points, material: mat });
   }
 
-  if (theme === 'lunar') {
+  if (theme === 'spring-festival') {
     // 10 lanterns at two heights; only the first 3 carry a PointLight
     for (let i = 0; i < 10; i++) {
       const l = lantern(i < 3);
