@@ -641,12 +641,27 @@ export function createThemeDecorations(
     }
   }
 
+  // Collect per-layer disposables: geometries / materials / textures owned
+  // by THIS layer only. Shared cached resources (SHARED) are skipped — the
+  // next layer reuses them — and material.map textures are freed too (the
+  // old code leaked every CanvasTexture, e.g. pumpkin faces).
   const disposables: { dispose(): void }[] = [];
+  const seenDisposables = new Set<object>();
+  const collect = (d: { dispose(): void }) => {
+    if (!SHARED.has(d) && !seenDisposables.has(d)) {
+      seenDisposables.add(d);
+      disposables.push(d);
+    }
+  };
   group.traverse(o => {
     const mesh = o as THREE.Mesh;
-    if (mesh.geometry) disposables.push(mesh.geometry);
+    if (mesh.geometry) collect(mesh.geometry);
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    if (mat) (Array.isArray(mat) ? mat : [mat]).forEach(m => disposables.push(m));
+    if (mat) (Array.isArray(mat) ? mat : [mat]).forEach(m => {
+      collect(m);
+      const withMap = m as THREE.Material & { map?: THREE.Texture | null };
+      if (withMap.map) collect(withMap.map);
+    });
   });
 
   // Grouped entrance beats: main pieces pop in first, ambience follows,
@@ -772,6 +787,12 @@ export function createThemeDecorations(
   }
 
   function dispose() {
+    // Stop any entrance/exit tweens still touching these objects first.
+    roots.forEach(r => {
+      gsap.killTweensOf(r.scale);
+      gsap.killTweensOf(r.position);
+    });
+    for (const s of snowPoints) gsap.killTweensOf(s.points.material);
     disposables.forEach(d => d.dispose());
     group.removeFromParent();
   }
