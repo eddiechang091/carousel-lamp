@@ -48,7 +48,6 @@ import { getLlmService, LlmUnavailableError, LlmVisionNotCapableError } from '@/
 import { generateAiCaption } from '@/services/anna/caption';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
-import ThemeIntro from '@/components/common/ThemeIntro';
 
 type Memory = {
   source: string;
@@ -180,8 +179,9 @@ export default function Home() {
         setViewSaved,
       );
       const carousel = api.current;
-      // First theme application is instant (no pop-in) so the scene opens themed.
-      carousel.setTheme(resolveTheme(themeMode), true);
+      // First theme application plays the in-scene intro: the camera
+      // pushes in (see createCarousel) while the decorations enter.
+      carousel.setTheme(resolveTheme(themeMode), false);
       themeFirstApplied.current = true;
       carousel.ready.then(async () => {
         try {
@@ -603,7 +603,6 @@ export default function Home() {
         <ThemeSwitcher value={themeMode} onChange={setThemeMode} />
         <LanguageSwitcher />
       </div>
-      <ThemeIntro key={themeId} themeId={themeId} />
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
         <img src="/carousel-lamp-title-clean.png" alt="" width={900} height={780} draggable={false} />
         <span className="title-sparkles" aria-hidden="true">

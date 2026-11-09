@@ -1008,6 +1008,15 @@ export function createCarousel(
     root.add(decorations.group);
     decorations.enter(instant);
   }
+  // First visit: open with a slow camera push-in while the decorations
+  // enter (see setTheme below). Saved views and reduced motion skip it.
+  if (!savedView && !reduced) {
+    camera.position.set(home.x * 1.8, home.y * 1.75, home.z * 1.8);
+    targetPos.copy(home);
+    targetLook.copy(homeTarget);
+    transition = true;
+    controls.enabled = false;
+  }
   animate();
   const keyboard = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return;

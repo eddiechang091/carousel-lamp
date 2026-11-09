@@ -13,12 +13,21 @@ export type ThemeDecorations = {
   dispose: () => void;
 };
 
+type EntranceGroup = 'main' | 'flyer' | 'ambient';
+
 type Floater = {
   obj: THREE.Object3D;
   baseY: number;
   phase: number;
   kind: 'bob' | 'sway' | 'orbit' | 'orbitCloud' | 'snow' | 'flap';
   extra?: Record<string, unknown>;
+  /** Entrance staging: main pieces first, ambience next, flyers last. */
+  group: EntranceGroup;
+  /** Fly-out start position (x/z); the floater tweens to its final spot on enter. */
+  flyFrom?: { x: number; z: number };
+  /** Final x/z when flyFrom is set (position is parked at flyFrom until enter). */
+  finalX?: number;
+  finalZ?: number;
 };
 
 function pumpkin(faceVariant: number) {
@@ -392,9 +401,22 @@ export function createThemeDecorations(
   const roots: THREE.Object3D[] = [];
   const snowPoints: { points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>; speeds: Float32Array; bases: Float32Array }[] = [];
 
-  const add = (obj: THREE.Object3D, kind: Floater['kind'], extra?: Floater['extra']) => {
+  const add = (
+    obj: THREE.Object3D,
+    kind: Floater['kind'],
+    extra?: Floater['extra'],
+    entranceGroup: EntranceGroup = 'main',
+    flyFrom?: { x: number; z: number },
+  ) => {
     obj.userData.phase = Math.random() * Math.PI * 2;
-    floaters.push({ obj, baseY: obj.position.y, phase: obj.userData.phase, kind, extra });
+    const floater: Floater = { obj, baseY: obj.position.y, phase: obj.userData.phase, kind, extra, group: entranceGroup, flyFrom };
+    if (flyFrom) {
+      floater.finalX = obj.position.x;
+      floater.finalZ = obj.position.z;
+      obj.position.x = flyFrom.x;
+      obj.position.z = flyFrom.z;
+    }
+    floaters.push(floater);
     roots.push(obj);
     group.add(obj);
   };
@@ -408,18 +430,19 @@ export function createThemeDecorations(
       p.rotation.y = Math.random() * Math.PI * 2;
       add(p, 'bob');
     }
-    // 5 vivid ghosts (3 expression variants)
+    // 5 vivid ghosts (3 expression variants) — fly out from behind the frames
     for (let i = 0; i < 5; i++) {
       const gh = ghost();
       const a = (i / 5) * Math.PI * 2 + 1;
-      gh.position.set(Math.sin(a) * 3.1, 1.4 + i * 0.75, Math.cos(a) * 3.1);
-      add(gh, 'sway');
+      const fx = Math.sin(a) * 3.1, fz = Math.cos(a) * 3.1;
+      gh.position.set(fx, 1.4 + i * 0.75, fz);
+      add(gh, 'sway', undefined, 'flyer', { x: fx * 0.12, z: fz * 0.12 });
     }
     // 12 bats
     for (let i = 0; i < 12; i++) {
       const b = bat();
       const a = (i / 12) * Math.PI * 2;
-      add(b, 'orbit', { angle: a, radius: 2.4 + Math.random() * 1.2, speed: 0.25 + Math.random() * 0.4, y: 2 + Math.random() * 3.6, wobble: Math.random() });
+      add(b, 'orbit', { angle: a, radius: 2.4 + Math.random() * 1.2, speed: 0.25 + Math.random() * 0.4, y: 2 + Math.random() * 3.6, wobble: Math.random() }, 'flyer');
     }
     // Spider webs + spiders at top of carousel (attached high up)
     for (let i = 0; i < 2; i++) {
@@ -428,10 +451,10 @@ export function createThemeDecorations(
       const web = spiderWeb(0.4);
       web.position.set(Math.sin(webA) * webR, 5.1, Math.cos(webA) * webR);
       web.rotation.x = Math.PI / 2;
-      add(web, 'bob');
+      add(web, 'bob', undefined, 'ambient');
       const sp = spider3d();
       sp.position.set(Math.sin(webA) * webR, 4.7 + i * 0.3, Math.cos(webA) * webR);
-      add(sp, 'sway');
+      add(sp, 'sway', undefined, 'ambient');
     }
     // Skeletons (2) near the base
     for (let i = 0; i < 2; i++) {
@@ -484,7 +507,7 @@ export function createThemeDecorations(
         }),
       );
       b.position.set(Math.sin(a) * 2.28, 4.62, Math.cos(a) * 2.28);
-      add(b, 'sway');
+      add(b, 'sway', undefined, 'ambient');
     }
     // Falling snow: points inside a cylinder around the carousel.
     const count = 260;
@@ -522,14 +545,14 @@ export function createThemeDecorations(
       const a = (i / 6) * Math.PI * 2 + 0.9;
       c.position.set(Math.sin(a) * 3.6, 1.1 + i * 0.8, Math.cos(a) * 3.6);
       c.scale.setScalar(0.9 + (i % 3) * 0.25);
-      add(c, 'orbitCloud', { angle: a, radius: 3.6, y: 1.1 + i * 0.8, speed: 0.05 + (i % 3) * 0.02 });
+      add(c, 'orbitCloud', { angle: a, radius: 3.6, y: 1.1 + i * 0.8, speed: 0.05 + (i % 3) * 0.02 }, 'ambient');
     }
     // Firework-style orbs floating near the top
     for (let i = 0; i < 4; i++) {
       const fw = lunarFireworkOrb();
       const a = (i / 4) * Math.PI * 2 + 0.3;
       fw.position.set(Math.sin(a) * 2.8, 3.5 + i * 0.4, Math.cos(a) * 2.8);
-      add(fw, 'orbit', { angle: a, radius: 2.8, speed: 0.18 + i * 0.04, y: 3.5 + i * 0.4, wobble: 0.4 });
+      add(fw, 'orbit', { angle: a, radius: 2.8, speed: 0.18 + i * 0.04, y: 3.5 + i * 0.4, wobble: 0.4 }, 'flyer');
     }
   }
 
@@ -541,20 +564,45 @@ export function createThemeDecorations(
     if (mat) (Array.isArray(mat) ? mat : [mat]).forEach(m => disposables.push(m));
   });
 
+  // Grouped entrance beats: main pieces pop in first, ambience follows,
+  // flyers (bats, ghosts, firework orbs) arrive last. Flyers with a
+  // flyFrom start near the column and glide out to their final spot.
+  const GROUP_DELAY: Record<EntranceGroup, number> = { main: 0.1, ambient: 0.5, flyer: 0.9 };
+
   function enter(instant = false) {
     if (instant) {
+      floaters.forEach(f => {
+        if (f.flyFrom && f.finalX !== undefined && f.finalZ !== undefined) {
+          f.obj.position.x = f.finalX;
+          f.obj.position.z = f.finalZ;
+        }
+      });
       roots.forEach(r => r.scale.setScalar(1));
       return;
     }
+    const seen: Record<EntranceGroup, number> = { main: 0, ambient: 0, flyer: 0 };
     roots.forEach((root, i) => {
+      const floater = floaters[i];
+      const groupDelay = GROUP_DELAY[floater.group] + seen[floater.group] * 0.05;
+      seen[floater.group]++;
       root.scale.setScalar(0.001);
       gsap.to(root.scale, {
         x: 1, y: 1, z: 1,
         duration: 0.9,
-        delay: i * 0.06,
+        delay: groupDelay,
         ease: 'elastic.out(1, 0.6)',
         overwrite: true,
       });
+      if (floater.flyFrom && floater.finalX !== undefined && floater.finalZ !== undefined) {
+        const { finalX, finalZ } = floater;
+        gsap.to(root.position, {
+          x: finalX, z: finalZ,
+          duration: 1.3,
+          delay: groupDelay,
+          ease: 'sine.out',
+          overwrite: true,
+        });
+      }
     });
     for (const s of snowPoints) {
       s.points.material.opacity = 0;
@@ -564,6 +612,7 @@ export function createThemeDecorations(
 
   function leave() {
     const jobs = roots.map((root, i) => new Promise<void>(resolve => {
+      gsap.killTweensOf(root.position);
       gsap.to(root.scale, {
         x: 0.001, y: 0.001, z: 0.001,
         duration: 0.55,
