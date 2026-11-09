@@ -33,10 +33,12 @@ function countLights(group: THREE.Group) {
 const DECORATED: ThemeId[] = [
   'halloween', 'christmas', 'spring-festival', 'new-year', 'valentine',
   'carnival', 'st-patrick', 'april-fools', 'easter', 'mothers-day', 'dragon-boat',
+  'mid-autumn', 'diwali', 'thanksgiving',
 ];
-// Halloween predates the light budget (6 pumpkins + 5 ghosts each carry a
-// PointLight = 11); every theme built since keeps to ≤ 3.
-const LIGHT_BUDGET: ThemeId[] = DECORATED.filter(t => t !== 'halloween');
+// Every decorated theme keeps to the ≤ 3 light budget (Halloween's old
+// 11 lights — 6 pumpkins + 5 ghosts — were replaced with emissive +
+// shared glow sprites in the batch-4 rework).
+const LIGHT_BUDGET: ThemeId[] = DECORATED;
 
 describe('createThemeDecorations', () => {
   it('builds an empty layer for default', () => {

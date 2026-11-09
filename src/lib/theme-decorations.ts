@@ -93,7 +93,7 @@ function pumpkin(faceVariant: number) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
     sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 16, 12)),
-    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05 })),
+    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05, emissive: '#ff6a1a', emissiveIntensity: 0.5 })),
   );
   body.scale.set(1, 0.82, 1); g.add(body);
   // Two side-lobes for a rounder look
@@ -114,8 +114,12 @@ function pumpkin(faceVariant: number) {
     sharedMat(`pumpkin-face-mat-${faceVariant % 3}`, () => new THREE.MeshBasicMaterial({ map: pumpkinFaceTexture(faceVariant), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, toneMapped: false })),
   );
   face.position.set(0, -0.01, 0.205); g.add(face);
-  const glow = new THREE.PointLight('#ff8c26', 1.8, 1.8, 2);
-  glow.position.y = 0.05; g.add(glow);
+  // No PointLight: the emissive body + a shared glow sprite read the same
+  // (6 pumpkins used to carry 6 lights).
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.05;
+  glow.scale.setScalar(0.6);
+  g.add(glow);
   return g;
 }
 
@@ -135,7 +139,7 @@ function ghost() {
     return new THREE.LatheGeometry(pts, 24);
   }), sharedMat('ghost-body', () => new THREE.MeshStandardMaterial({
     color: '#ddeeff', transparent: true, opacity: 0.62,
-    roughness: 0.2, emissive: '#99ccff', emissiveIntensity: 0.55, side: THREE.DoubleSide,
+    roughness: 0.2, emissive: '#99ccff', emissiveIntensity: 0.7, side: THREE.DoubleSide,
   })));
   g.add(body);
   const eyeMat = sharedMat('ghost-eye', () => new THREE.MeshBasicMaterial({ color: '#1a0a2e' }));
@@ -147,9 +151,12 @@ function ghost() {
     const pupil = new THREE.Mesh(sharedGeo('ghost-pupil', () => new THREE.SphereGeometry(0.012, 6, 6)), pupilMat);
     pupil.position.set(x, 0.17, 0.155); g.add(pupil);
   }
-  // inner glow point light
-  const inner = new THREE.PointLight('#88ccff', 0.9, 1.2, 2);
-  inner.position.set(0, 0.1, 0); g.add(inner);
+  // No PointLight (5 ghosts used to carry 5 lights): the emissive body +
+  // a shared glow sprite read the same.
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.set(0, 0.1, 0);
+  glow.scale.setScalar(0.7);
+  g.add(glow);
   return g;
 }
 
@@ -291,6 +298,75 @@ function skeleton3d() {
     upper.position.set(side * 0.07, 0.17, 0); g.add(upper);
     const lower = new THREE.Mesh(sharedGeo('skeleton-leg-lower', () => new THREE.CylinderGeometry(0.02, 0.02, 0.28, 8)), bone);
     lower.position.set(side * 0.07, -0.12, 0); g.add(lower);
+  }
+  return g;
+}
+
+// Wizard hat — midnight-purple cone with a bent tip, gold band, wide
+// brim. No light; the band and stars read via emissive.
+function wizardHat() {
+  const g = new THREE.Group();
+  const purple = sharedMat('halloween-wizard-purple', () => new THREE.MeshStandardMaterial({
+    color: '#2e0854', roughness: 0.6, emissive: '#7a4fd0', emissiveIntensity: 0.35,
+  }));
+  const gold = sharedMat('halloween-wizard-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.6, emissive: '#ffd700', emissiveIntensity: 0.3,
+  }));
+  const brim = new THREE.Mesh(sharedGeo('halloween-wizard-brim', () => new THREE.CylinderGeometry(0.24, 0.26, 0.02, 20)), purple);
+  brim.position.y = 0.01;
+  g.add(brim);
+  const cone = new THREE.Mesh(sharedGeo('halloween-wizard-cone', () => new THREE.ConeGeometry(0.14, 0.34, 16)), purple);
+  cone.position.y = 0.19;
+  g.add(cone);
+  const tip = new THREE.Mesh(sharedGeo('halloween-wizard-tip', () => new THREE.ConeGeometry(0.05, 0.14, 10)), purple);
+  tip.position.set(0.07, 0.38, 0);
+  tip.rotation.z = -0.7;
+  g.add(tip);
+  const band = new THREE.Mesh(sharedGeo('halloween-wizard-band', () => new THREE.CylinderGeometry(0.145, 0.15, 0.04, 16)), gold);
+  band.position.y = 0.08;
+  g.add(band);
+  // Tiny gold stars on the cone.
+  for (let i = 0; i < 3; i++) {
+    const star = new THREE.Mesh(sharedGeo('halloween-wizard-star', () => new THREE.SphereGeometry(0.012, 6, 6)), gold);
+    const a = i * 2.1;
+    star.position.set(Math.cos(a) * 0.09, 0.16 + i * 0.07, Math.sin(a) * 0.09);
+    g.add(star);
+  }
+  return g;
+}
+
+// Candy jar — glass jar full of wrapped candies, gold lid, a few
+// spilled at the foot. No light; candies read via emissive.
+function candyJar() {
+  const g = new THREE.Group();
+  const glass = sharedMat('halloween-candy-glass', () => new THREE.MeshStandardMaterial({
+    color: '#cfe8ff', transparent: true, opacity: 0.45, roughness: 0.1, metalness: 0.1,
+  }));
+  const jar = new THREE.Mesh(sharedGeo('halloween-candy-jar', () => new THREE.CylinderGeometry(0.14, 0.13, 0.24, 20)), glass);
+  jar.position.y = 0.12;
+  g.add(jar);
+  const lid = new THREE.Mesh(
+    sharedGeo('halloween-candy-lid', () => new THREE.CylinderGeometry(0.15, 0.15, 0.035, 20)),
+    sharedMat('halloween-candy-lid', () => new THREE.MeshStandardMaterial({ color: '#c9902e', roughness: 0.35, metalness: 0.6 })),
+  );
+  lid.position.y = 0.26;
+  g.add(lid);
+  const candyColors = ['#ff4466', '#44ffaa', '#ffdd22', '#aa44ff', '#ff7518'];
+  for (let i = 0; i < 6; i++) {
+    const col = candyColors[i % candyColors.length];
+    const candy = new THREE.Mesh(sharedGeo('halloween-candy', () => new THREE.SphereGeometry(0.032, 8, 6)),
+      sharedMat(`halloween-candy-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, emissive: col, emissiveIntensity: 0.35 })));
+    const a = (i / 6) * Math.PI * 2;
+    candy.position.set(Math.cos(a) * 0.06, 0.07 + (i % 3) * 0.06, Math.sin(a) * 0.06);
+    g.add(candy);
+  }
+  // Spilled candies at the foot of the jar.
+  for (let i = 0; i < 3; i++) {
+    const col = candyColors[(i + 2) % candyColors.length];
+    const candy = new THREE.Mesh(sharedGeo('halloween-candy', () => new THREE.SphereGeometry(0.025, 8, 6)),
+      sharedMat(`halloween-candy-${col}`, () => new THREE.MeshStandardMaterial({ color: col, roughness: 0.3, emissive: col, emissiveIntensity: 0.35 })));
+    candy.position.set(0.2 + i * 0.06, 0.025, 0.08 - i * 0.05);
+    g.add(candy);
   }
   return g;
 }
@@ -2279,6 +2355,607 @@ function sachet() {
   return g;
 }
 
+// ---------------------------------------------------------------------------
+// Mid-Autumn Festival: full moon, jade rabbit, mooncakes, osmanthus,
+// paper lanterns. No PointLight anywhere — the moon and lanterns read via
+// emissive + the shared additive glow sprite.
+// ---------------------------------------------------------------------------
+
+function moonTexture(): THREE.CanvasTexture {
+  return sharedTex('mid-autumn-moon', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 256;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#f5f5f5'; c.fillRect(0, 0, 256, 256);
+    // Soft craters: overlapping low-alpha grey discs.
+    const craters: [number, number, number, string][] = [
+      [90, 80, 26, 'rgba(178,178,198,0.8)'], [150, 110, 18, 'rgba(186,186,204,0.75)'],
+      [110, 160, 30, 'rgba(172,172,194,0.75)'], [180, 170, 14, 'rgba(188,188,206,0.75)'],
+      [70, 130, 12, 'rgba(182,182,200,0.75)'], [160, 60, 10, 'rgba(190,190,208,0.7)'],
+    ];
+    for (const [x, y, r, col] of craters) {
+      c.fillStyle = col;
+      c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+function fullMoon() {
+  const g = new THREE.Group();
+  const disc = new THREE.Mesh(
+    sharedGeo('mid-autumn-moon', () => new THREE.SphereGeometry(0.55, 24, 18)),
+    sharedMat('mid-autumn-moon', () => new THREE.MeshStandardMaterial({
+      map: moonTexture(), roughness: 0.9,
+      emissive: '#fff8e0', emissiveIntensity: 0.35,
+    })),
+  );
+  g.add(disc);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(2.6);
+  g.add(glow);
+  return g;
+}
+
+// Jade rabbit — white fur, red eyes, long ears; larger than the Easter
+// bunny so it reads past the horses.
+function moonRabbit() {
+  const g = new THREE.Group();
+  const fur = sharedMat('mid-autumn-rabbit-fur', () => new THREE.MeshStandardMaterial({
+    color: '#f5f5f5', roughness: 0.75,
+  }));
+  const body = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-body', () => new THREE.SphereGeometry(0.13, 14, 10)), fur);
+  body.scale.set(1, 1.1, 0.9);
+  body.position.y = 0.14;
+  g.add(body);
+  const head = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-head', () => new THREE.SphereGeometry(0.085, 14, 10)), fur);
+  head.position.set(0, 0.32, 0.02);
+  g.add(head);
+  const eyeMat = sharedMat('mid-autumn-rabbit-eye', () => new THREE.MeshBasicMaterial({ color: '#c41e3a' }));
+  for (const side of [-1, 1]) {
+    const ear = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-ear', () => new THREE.SphereGeometry(0.032, 10, 8)), fur);
+    ear.position.set(side * 0.045, 0.48, 0);
+    ear.scale.set(1, 3.0, 0.5);
+    ear.rotation.z = side * -0.12;
+    g.add(ear);
+    const eye = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-eye', () => new THREE.SphereGeometry(0.012, 6, 6)), eyeMat);
+    eye.position.set(side * 0.04, 0.33, 0.085);
+    g.add(eye);
+    const foot = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-foot', () => new THREE.SphereGeometry(0.045, 8, 6)), fur);
+    foot.position.set(side * 0.06, 0.03, 0.09);
+    foot.scale.set(1, 0.5, 1.4);
+    g.add(foot);
+  }
+  const nose = new THREE.Mesh(
+    sharedGeo('mid-autumn-rabbit-nose', () => new THREE.SphereGeometry(0.012, 6, 6)),
+    sharedMat('mid-autumn-rabbit-nose', () => new THREE.MeshBasicMaterial({ color: '#d4556a' })),
+  );
+  nose.position.set(0, 0.31, 0.1);
+  g.add(nose);
+  const tail = new THREE.Mesh(sharedGeo('mid-autumn-rabbit-tail', () => new THREE.SphereGeometry(0.045, 8, 8)), fur);
+  tail.position.set(0, 0.16, -0.13);
+  g.add(tail);
+  return g;
+}
+
+function mooncakeTopTexture(): THREE.CanvasTexture {
+  return sharedTex('mid-autumn-mooncake-top', () => {
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 128;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#d99a2b'; c.fillRect(0, 0, 128, 128);
+    c.strokeStyle = '#8a5a12'; c.lineWidth = 4;
+    c.beginPath(); c.arc(64, 64, 44, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(64, 64, 16, 0, Math.PI * 2); c.stroke();
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      c.beginPath();
+      c.moveTo(64 + Math.cos(a) * 18, 64 + Math.sin(a) * 18);
+      c.lineTo(64 + Math.cos(a) * 42, 64 + Math.sin(a) * 42);
+      c.stroke();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+// Mooncake on a small porcelain plate.
+function mooncake() {
+  const g = new THREE.Group();
+  const plate = new THREE.Mesh(
+    sharedGeo('mid-autumn-plate', () => new THREE.CylinderGeometry(0.15, 0.11, 0.02, 20)),
+    sharedMat('mid-autumn-plate', () => new THREE.MeshStandardMaterial({ color: '#e8eef7', roughness: 0.25 })),
+  );
+  plate.position.y = 0.01;
+  g.add(plate);
+  const cake = new THREE.Mesh(
+    sharedGeo('mid-autumn-cake', () => new THREE.CylinderGeometry(0.11, 0.11, 0.06, 20)),
+    sharedMat('mid-autumn-cake', () => new THREE.MeshStandardMaterial({
+      color: '#c98a2e', roughness: 0.55, emissive: '#c98a2e', emissiveIntensity: 0.15,
+    })),
+  );
+  cake.position.y = 0.05;
+  g.add(cake);
+  const top = new THREE.Mesh(
+    sharedGeo('mid-autumn-cake-top', () => new THREE.CircleGeometry(0.105, 20)),
+    sharedMat('mid-autumn-cake-top', () => new THREE.MeshStandardMaterial({
+      map: mooncakeTopTexture(), roughness: 0.55,
+    })),
+  );
+  top.rotation.x = -Math.PI / 2;
+  top.position.y = 0.081;
+  g.add(top);
+  return g;
+}
+
+// Osmanthus branch — curved tube stem, tiny yellow flower clusters,
+// a few green leaves.
+function osmanthusBranch() {
+  const g = new THREE.Group();
+  const stemCurve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(0, 0, 0),
+    new THREE.Vector3(0.12, 0.22, 0),
+    new THREE.Vector3(0.05, 0.46, 0),
+  );
+  const stem = new THREE.Mesh(
+    sharedGeo('mid-autumn-osmanthus-stem', () => new THREE.TubeGeometry(stemCurve, 8, 0.012, 6)),
+    sharedMat('mid-autumn-osmanthus-stem', () => new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.85 })),
+  );
+  g.add(stem);
+  const flowerMat = sharedMat('mid-autumn-osmanthus-flower', () => new THREE.MeshStandardMaterial({
+    color: '#f8de7e', roughness: 0.5, emissive: '#f8de7e', emissiveIntensity: 0.7,
+  }));
+  const leafMat = sharedMat('mid-autumn-osmanthus-leaf', () => new THREE.MeshStandardMaterial({ color: '#4a7a3a', roughness: 0.7 }));
+  for (let i = 0; i < 5; i++) {
+    const p = stemCurve.getPoint(0.15 + i * 0.17);
+    for (let j = 0; j < 4; j++) {
+      const a = (j / 4) * Math.PI * 2 + i;
+      const f = new THREE.Mesh(sharedGeo('mid-autumn-osmanthus-bloom', () => new THREE.SphereGeometry(0.018, 6, 6)), flowerMat);
+      f.position.set(p.x + Math.cos(a) * 0.03, p.y + (j % 2) * 0.02, p.z + Math.sin(a) * 0.03);
+      g.add(f);
+    }
+  }
+  for (let i = 0; i < 3; i++) {
+    const p = stemCurve.getPoint(0.3 + i * 0.25);
+    const leaf = new THREE.Mesh(sharedGeo('mid-autumn-osmanthus-leaf', () => new THREE.SphereGeometry(0.045, 8, 6)), leafMat);
+    leaf.position.set(p.x - 0.05, p.y, p.z);
+    leaf.scale.set(1.6, 0.5, 0.8);
+    leaf.rotation.z = 0.5;
+    g.add(leaf);
+  }
+  return g;
+}
+
+// Pale paper lantern — warm gold-cream, distinct from the red
+// spring-festival lantern. Glow via emissive + shared sprite.
+function paperLantern() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('mid-autumn-paper-lantern', () => new THREE.SphereGeometry(0.13, 16, 12)),
+    sharedMat('mid-autumn-paper-lantern', () => new THREE.MeshStandardMaterial({
+      color: '#fdf6d8', roughness: 0.5,
+      emissive: '#ffe9a8', emissiveIntensity: 0.6,
+    })),
+  );
+  body.scale.set(1, 0.88, 1);
+  g.add(body);
+  const capMat = sharedMat('mid-autumn-lantern-gold', () => new THREE.MeshStandardMaterial({ color: '#d4a24a', roughness: 0.3, metalness: 0.6 }));
+  const cap = new THREE.Mesh(sharedGeo('mid-autumn-lantern-cap', () => new THREE.CylinderGeometry(0.05, 0.06, 0.03, 12)), capMat);
+  cap.position.y = 0.12;
+  g.add(cap);
+  const tassel = new THREE.Mesh(
+    sharedGeo('mid-autumn-lantern-tassel', () => new THREE.ConeGeometry(0.02, 0.09, 8)),
+    sharedMat('mid-autumn-lantern-tassel', () => new THREE.MeshStandardMaterial({ color: '#d4556a', roughness: 0.6 })),
+  );
+  tassel.rotation.x = Math.PI;
+  tassel.position.y = -0.16;
+  g.add(tassel);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(0.55);
+  g.add(glow);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Diwali: clay diya lamps, rangoli floor pattern, marigold garlands,
+// golden mandalas. No PointLight — flames read via emissive + the shared
+// additive glow sprite.
+// ---------------------------------------------------------------------------
+
+// Clay diya — lathe-turned terracotta bowl, oil, emissive flame + halo.
+function diyaLamp() {
+  const g = new THREE.Group();
+  const pts: THREE.Vector2[] = [
+    new THREE.Vector2(0, 0), new THREE.Vector2(0.06, 0),
+    new THREE.Vector2(0.1, 0.02), new THREE.Vector2(0.13, 0.06),
+    new THREE.Vector2(0.14, 0.09),
+  ];
+  const bowl = new THREE.Mesh(
+    sharedGeo('diwali-diya-bowl', () => new THREE.LatheGeometry(pts, 20)),
+    sharedMat('diwali-diya-clay', () => new THREE.MeshStandardMaterial({ color: '#a0522d', roughness: 0.8 })),
+  );
+  g.add(bowl);
+  const oil = new THREE.Mesh(
+    sharedGeo('diwali-diya-oil', () => new THREE.CircleGeometry(0.1, 16)),
+    sharedMat('diwali-diya-oil', () => new THREE.MeshStandardMaterial({
+      color: '#3a2408', roughness: 0.2, emissive: '#ff9933', emissiveIntensity: 0.35,
+    })),
+  );
+  oil.rotation.x = -Math.PI / 2;
+  oil.position.y = 0.055;
+  g.add(oil);
+  const flame = new THREE.Mesh(
+    sharedGeo('diwali-diya-flame', () => new THREE.SphereGeometry(0.025, 10, 8)),
+    sharedMat('diwali-diya-flame', () => new THREE.MeshStandardMaterial({
+      color: '#ff9933', emissive: '#ffaa22', emissiveIntensity: 1.6, roughness: 0.2,
+    })),
+  );
+  flame.scale.set(1, 1.9, 1);
+  flame.position.y = 0.11;
+  g.add(flame);
+  const core = new THREE.Mesh(
+    sharedGeo('diwali-diya-core', () => new THREE.SphereGeometry(0.012, 8, 6)),
+    sharedMat('diwali-diya-core', () => new THREE.MeshBasicMaterial({ color: '#ffee88' })),
+  );
+  core.scale.set(1, 1.9, 1);
+  core.position.y = 0.1;
+  g.add(core);
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.position.y = 0.12;
+  glow.scale.setScalar(0.5);
+  g.add(glow);
+  return g;
+}
+
+function rangoliTexture(): THREE.CanvasTexture {
+  return sharedTex('diwali-rangoli', () => {
+    const cv = document.createElement('canvas'); cv.width = 512; cv.height = 512;
+    const c = cv.getContext('2d')!;
+    c.clearRect(0, 0, 512, 512);
+    const cx = 256, cy = 256;
+    // Concentric bands: saffron, gold, magenta, sapphire.
+    const bands: [number, number, string][] = [
+      [250, 226, '#ff9933'], [226, 200, '#ffd700'], [200, 168, '#c71585'],
+      [168, 140, '#0f52ba'], [140, 108, '#ffd700'], [108, 78, '#ff9933'],
+    ];
+    for (const [r0, r1, col] of bands) {
+      c.fillStyle = col;
+      c.beginPath(); c.arc(cx, cy, r0, 0, Math.PI * 2); c.arc(cx, cy, r1, 0, Math.PI * 2, true); c.fill();
+    }
+    // 12 petals around the middle band (ellipse via scale + arc, so the
+    // jsdom canvas stub — which has no ellipse() — still works).
+    c.fillStyle = '#fff6e0';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      c.save();
+      c.translate(cx + Math.cos(a) * 184, cy + Math.sin(a) * 184);
+      c.rotate(a);
+      c.scale(26 / 12, 1);
+      c.beginPath(); c.arc(0, 0, 12, 0, Math.PI * 2); c.fill();
+      c.restore();
+    }
+    // Dots on the outer band.
+    c.fillStyle = '#fff6e0';
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      c.beginPath(); c.arc(cx + Math.cos(a) * 238, cy + Math.sin(a) * 238, 6, 0, Math.PI * 2); c.fill();
+    }
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  });
+}
+
+// Ground rangoli — a flat ring around the base, drawn with the mandala
+// texture. Static (no floater): it lies on the ground plane.
+function rangoli() {
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(
+    sharedGeo('diwali-rangoli-ring', () => new THREE.RingGeometry(1.9, 3.15, 48)),
+    sharedMat('diwali-rangoli', () => new THREE.MeshBasicMaterial({ map: rangoliTexture(), transparent: true, side: THREE.DoubleSide })),
+  );
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = 0.02;
+  g.add(ring);
+  return g;
+}
+
+// Marigold garland — a sagging swag of orange/yellow pom-poms with leaves,
+// hung from the canopy rim.
+function marigoldGarland() {
+  const g = new THREE.Group();
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(-0.45, 0, 0),
+    new THREE.Vector3(0, -0.28, 0),
+    new THREE.Vector3(0.45, 0, 0),
+  );
+  const stem = new THREE.Mesh(
+    sharedGeo('diwali-garland-stem', () => new THREE.TubeGeometry(curve, 10, 0.01, 6)),
+    sharedMat('diwali-garland-stem', () => new THREE.MeshStandardMaterial({ color: '#2e7d32', roughness: 0.8 })),
+  );
+  g.add(stem);
+  const pomColors = ['#ff9933', '#ffd700'];
+  const leafMat = sharedMat('diwali-garland-leaf', () => new THREE.MeshStandardMaterial({ color: '#2e8b57', roughness: 0.7 }));
+  for (let i = 0; i < 9; i++) {
+    const p = curve.getPoint(i / 8);
+    const col = pomColors[i % 2];
+    const pom = new THREE.Mesh(sharedGeo('diwali-garland-pom', () => new THREE.SphereGeometry(0.05, 10, 8)),
+      sharedMat(`diwali-garland-pom-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.4,
+      })));
+    pom.position.copy(p);
+    pom.scale.y = 0.85;
+    g.add(pom);
+    if (i % 2 === 0) {
+      const leaf = new THREE.Mesh(sharedGeo('diwali-garland-leaf', () => new THREE.SphereGeometry(0.04, 8, 6)), leafMat);
+      leaf.position.set(p.x + 0.05, p.y + 0.03, p.z);
+      leaf.scale.set(1.5, 0.5, 0.8);
+      g.add(leaf);
+    }
+  }
+  return g;
+}
+
+// Golden mandala — radiating petals around a disc, gold emissive,
+// floating mid-air.
+function goldenMandala() {
+  const g = new THREE.Group();
+  const gold = sharedMat('diwali-mandala-gold', () => new THREE.MeshStandardMaterial({
+    color: '#ffd700', roughness: 0.3, metalness: 0.65, emissive: '#ffd700', emissiveIntensity: 0.5,
+  }));
+  const disc = new THREE.Mesh(sharedGeo('diwali-mandala-disc', () => new THREE.CylinderGeometry(0.12, 0.12, 0.02, 20)), gold);
+  disc.rotation.x = Math.PI / 2;
+  g.add(disc);
+  const ring = new THREE.Mesh(sharedGeo('diwali-mandala-ring', () => new THREE.TorusGeometry(0.3, 0.015, 8, 32)), gold);
+  g.add(ring);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const petal = new THREE.Mesh(sharedGeo('diwali-mandala-petal', () => new THREE.SphereGeometry(0.07, 10, 8)), gold);
+    petal.position.set(Math.cos(a) * 0.21, Math.sin(a) * 0.21, 0);
+    petal.scale.set(1.4, 0.6, 0.35);
+    petal.rotation.z = a;
+    g.add(petal);
+  }
+  const glow = new THREE.Sprite(getGlowMaterial());
+  glow.scale.setScalar(0.8);
+  g.add(glow);
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Thanksgiving (Canadian date, 2nd Monday of October): turkey, pumpkin
+// piles, maple leaves, corn, pinecones, wheat sheaves. No PointLight —
+// golden-hour warmth reads via emissive + one large shared glow sprite
+// low in the sky.
+// ---------------------------------------------------------------------------
+
+// Turkey — brown body, fanned tail in maple red / pumpkin / wheat gold,
+// head with beak and wattle.
+function turkey() {
+  const g = new THREE.Group();
+  const brown = sharedMat('thanksgiving-turkey-brown', () => new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.7 }));
+  const body = new THREE.Mesh(sharedGeo('thanksgiving-turkey-body', () => new THREE.SphereGeometry(0.16, 16, 12)), brown);
+  body.scale.set(1, 0.9, 1.2);
+  body.position.y = 0.18;
+  g.add(body);
+  const tailColors = ['#c41e3a', '#d96b27', '#daa520', '#d96b27', '#c41e3a'];
+  for (let i = 0; i < 5; i++) {
+    const col = tailColors[i];
+    const feather = new THREE.Mesh(sharedGeo('thanksgiving-turkey-feather', () => new THREE.SphereGeometry(0.07, 10, 8)),
+      sharedMat(`thanksgiving-turkey-feather-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.3,
+      })));
+    const a = (i - 2) * 0.38;
+    feather.position.set(Math.sin(a) * 0.16, 0.3, -0.16);
+    feather.scale.set(0.55, 1.7, 0.2);
+    feather.rotation.z = -a;
+    feather.rotation.x = -0.25;
+    g.add(feather);
+  }
+  const head = new THREE.Mesh(sharedGeo('thanksgiving-turkey-head', () => new THREE.SphereGeometry(0.06, 12, 10)), brown);
+  head.position.set(0, 0.38, 0.15);
+  g.add(head);
+  const beak = new THREE.Mesh(
+    sharedGeo('thanksgiving-turkey-beak', () => new THREE.ConeGeometry(0.02, 0.05, 8)),
+    sharedMat('thanksgiving-turkey-beak', () => new THREE.MeshStandardMaterial({ color: '#ff9933', roughness: 0.5 })),
+  );
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.37, 0.22);
+  g.add(beak);
+  const wattle = new THREE.Mesh(
+    sharedGeo('thanksgiving-turkey-wattle', () => new THREE.SphereGeometry(0.018, 8, 6)),
+    sharedMat('thanksgiving-turkey-wattle', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.5, emissive: '#c41e3a', emissiveIntensity: 0.4 })),
+  );
+  wattle.position.set(0, 0.34, 0.21);
+  g.add(wattle);
+  const eyeMat = sharedMat('thanksgiving-turkey-eye', () => new THREE.MeshBasicMaterial({ color: '#1a1a1a' }));
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(sharedGeo('thanksgiving-turkey-eye', () => new THREE.SphereGeometry(0.009, 6, 6)), eyeMat);
+    eye.position.set(side * 0.03, 0.4, 0.2);
+    g.add(eye);
+    const wing = new THREE.Mesh(sharedGeo('thanksgiving-turkey-wing', () => new THREE.SphereGeometry(0.09, 10, 8)), brown);
+    wing.position.set(side * 0.15, 0.18, 0.02);
+    wing.scale.set(0.4, 0.9, 1.1);
+    g.add(wing);
+    const leg = new THREE.Mesh(sharedGeo('thanksgiving-turkey-leg', () => new THREE.CylinderGeometry(0.012, 0.012, 0.08, 6)),
+      sharedMat('thanksgiving-turkey-leg', () => new THREE.MeshStandardMaterial({ color: '#ff9933', roughness: 0.6 })));
+    leg.position.set(side * 0.06, 0.04, 0.05);
+    g.add(leg);
+  }
+  return g;
+}
+
+// Plain harvest pumpkin — the shared pumpkin body/lobes/stem, no face.
+function harvestPumpkin() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 16, 12)),
+    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05, emissive: '#ff6a1a', emissiveIntensity: 0.5 })),
+  );
+  body.scale.set(1, 0.82, 1); g.add(body);
+  for (const sx of [-0.1, 0.1]) {
+    const lobe = new THREE.Mesh(
+      sharedGeo('pumpkin-lobe', () => new THREE.SphereGeometry(0.19, 16, 12)),
+      sharedMat('pumpkin-lobe', () => new THREE.MeshStandardMaterial({ color: '#e06810', roughness: 0.6 })),
+    );
+    lobe.position.set(sx, 0, 0); lobe.scale.set(1, 0.78, 0.9); g.add(lobe);
+  }
+  const stem = new THREE.Mesh(
+    sharedGeo('pumpkin-stem', () => new THREE.CylinderGeometry(0.03, 0.05, 0.1, 8)),
+    sharedMat('pumpkin-stem', () => new THREE.MeshStandardMaterial({ color: '#3f6b2a', roughness: 0.8 })),
+  );
+  stem.position.y = 0.2; g.add(stem);
+  return g;
+}
+
+// A pile of three harvest pumpkins.
+function pumpkinPile() {
+  const g = new THREE.Group();
+  const spots: [number, number, number, number][] = [
+    [0, 0, 0, 1], [-0.2, 0, 0.08, 0.8], [0.18, 0, -0.06, 0.75],
+  ];
+  for (const [x, y, z, s] of spots) {
+    const p = harvestPumpkin();
+    p.position.set(x, y + 0.18 * s, z);
+    p.scale.setScalar(s);
+    p.rotation.y = Math.random() * Math.PI;
+    g.add(p);
+  }
+  return g;
+}
+
+// Stylized 5-lobe maple leaf — flat shape, maple red, double-sided.
+function mapleLeaf() {
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.16);
+  shape.lineTo(0, -0.06);
+  shape.lineTo(-0.05, -0.08);
+  shape.lineTo(-0.13, -0.02);
+  shape.lineTo(-0.07, 0.02);
+  shape.lineTo(-0.16, 0.06);
+  shape.lineTo(-0.09, 0.1);
+  shape.lineTo(-0.11, 0.16);
+  shape.lineTo(-0.04, 0.13);
+  shape.lineTo(0, 0.18);
+  shape.lineTo(0.04, 0.13);
+  shape.lineTo(0.11, 0.16);
+  shape.lineTo(0.09, 0.1);
+  shape.lineTo(0.16, 0.06);
+  shape.lineTo(0.07, 0.02);
+  shape.lineTo(0.13, -0.02);
+  shape.lineTo(0.05, -0.08);
+  shape.lineTo(0, -0.06);
+  const leaf = new THREE.Mesh(
+    sharedGeo('thanksgiving-maple-leaf', () => new THREE.ShapeGeometry(shape)),
+    sharedMat('thanksgiving-maple-leaf', () => new THREE.MeshStandardMaterial({
+      color: '#c41e3a', roughness: 0.6, emissive: '#c41e3a', emissiveIntensity: 0.35, side: THREE.DoubleSide,
+    })),
+  );
+  g.add(leaf);
+  const stem = new THREE.Mesh(
+    sharedGeo('thanksgiving-maple-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.1, 6)),
+    sharedMat('thanksgiving-maple-stem', () => new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.8 })),
+  );
+  stem.position.y = -0.2;
+  g.add(stem);
+  return g;
+}
+
+// Corn cob — golden capsule, green husk peeling at the foot, silk on top.
+function cornCob() {
+  const g = new THREE.Group();
+  const cob = new THREE.Mesh(
+    sharedGeo('thanksgiving-corn', () => new THREE.CapsuleGeometry(0.055, 0.16, 4, 10)),
+    sharedMat('thanksgiving-corn', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.45, emissive: '#ffd700', emissiveIntensity: 0.25,
+    })),
+  );
+  cob.position.y = 0.2;
+  g.add(cob);
+  const huskMat = sharedMat('thanksgiving-corn-husk', () => new THREE.MeshStandardMaterial({ color: '#4a7a3a', roughness: 0.7 }));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const husk = new THREE.Mesh(sharedGeo('thanksgiving-corn-husk', () => new THREE.ConeGeometry(0.05, 0.18, 8)), huskMat);
+    husk.position.set(Math.cos(a) * 0.05, 0.08, Math.sin(a) * 0.05);
+    husk.rotation.z = Math.cos(a) * 0.5;
+    husk.rotation.x = -Math.sin(a) * 0.5;
+    g.add(husk);
+  }
+  for (let i = 0; i < 3; i++) {
+    const silk = new THREE.Mesh(
+      sharedGeo('thanksgiving-corn-silk', () => new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6)),
+      sharedMat('thanksgiving-corn-silk', () => new THREE.MeshStandardMaterial({ color: '#f8de7e', roughness: 0.6 })),
+    );
+    silk.position.set((i - 1) * 0.02, 0.34, 0);
+    silk.rotation.z = (i - 1) * 0.3;
+    g.add(silk);
+  }
+  return g;
+}
+
+// Pinecone — brown core with three rings of overlapping scales.
+function pinecone() {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(
+    sharedGeo('thanksgiving-pinecone-core', () => new THREE.ConeGeometry(0.09, 0.24, 12)),
+    sharedMat('thanksgiving-pinecone-core', () => new THREE.MeshStandardMaterial({ color: '#6b4423', roughness: 0.85 })),
+  );
+  core.position.y = 0.12;
+  g.add(core);
+  const scaleMat = sharedMat('thanksgiving-pinecone-scale', () => new THREE.MeshStandardMaterial({
+    color: '#5a3a1e', roughness: 0.85, emissive: '#5a3a1e', emissiveIntensity: 0.1,
+  }));
+  for (let ring = 0; ring < 3; ring++) {
+    const y = 0.05 + ring * 0.07;
+    const r = 0.075 - ring * 0.015;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + ring * 0.5;
+      const scale = new THREE.Mesh(sharedGeo('thanksgiving-pinecone-scale', () => new THREE.SphereGeometry(0.028, 8, 6)), scaleMat);
+      scale.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+      scale.scale.set(1, 0.6, 0.7);
+      scale.rotation.y = -a;
+      g.add(scale);
+    }
+  }
+  return g;
+}
+
+// Wheat sheaf — five stalks with grain heads, tied with a red band.
+function wheatSheaf() {
+  const g = new THREE.Group();
+  const stalkMat = sharedMat('thanksgiving-wheat-stalk', () => new THREE.MeshStandardMaterial({ color: '#daa520', roughness: 0.6 }));
+  const grainMat = sharedMat('thanksgiving-wheat-grain', () => new THREE.MeshStandardMaterial({
+    color: '#daa520', roughness: 0.5, emissive: '#daa520', emissiveIntensity: 0.45,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const tilt = 0.12;
+    const stalk = new THREE.Mesh(sharedGeo('thanksgiving-wheat-stalk', () => new THREE.CylinderGeometry(0.008, 0.008, 0.45, 6)), stalkMat);
+    stalk.position.set(Math.cos(a) * 0.03, 0.225, Math.sin(a) * 0.03);
+    stalk.rotation.z = Math.cos(a) * tilt;
+    stalk.rotation.x = -Math.sin(a) * tilt;
+    g.add(stalk);
+    for (let j = 0; j < 5; j++) {
+      const grain = new THREE.Mesh(sharedGeo('thanksgiving-wheat-grain', () => new THREE.SphereGeometry(0.02, 8, 6)), grainMat);
+      const gy = 0.38 + j * 0.035;
+      grain.position.set(Math.cos(a) * (0.03 + tilt * gy * 0.5), gy, Math.sin(a) * (0.03 + tilt * gy * 0.5));
+      grain.scale.set(1, 1.8, 1);
+      grain.rotation.z = (j % 2 === 0 ? 0.4 : -0.4);
+      g.add(grain);
+    }
+  }
+  const band = new THREE.Mesh(
+    sharedGeo('thanksgiving-wheat-band', () => new THREE.TorusGeometry(0.075, 0.015, 8, 20)),
+    sharedMat('thanksgiving-wheat-band', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.5 })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.15;
+  g.add(band);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2349,6 +3026,30 @@ export function createThemeDecorations(
     bucket.position.set(1.0, 0.22, 1.0);
     bucket.rotation.y = -0.5;
     add(bucket, 'bob');
+    // Wizard hats — two on the base, one floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.4;
+      const hat = wizardHat();
+      hat.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      hat.rotation.y = -a;
+      hat.rotation.z = 0.12;
+      hat.scale.setScalar(1.3);
+      add(hat, 'bob');
+    }
+    const floatHat = wizardHat();
+    floatHat.position.set(-2.4, 2.6, 1.2);
+    floatHat.rotation.z = -0.25;
+    floatHat.scale.setScalar(1.2);
+    add(floatHat, 'sway');
+    // Candy jars on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.2;
+      const jar = candyJar();
+      jar.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      jar.rotation.y = -a;
+      jar.scale.setScalar(1.2);
+      add(jar, 'bob');
+    }
   }
 
   if (theme === 'christmas') {
@@ -2970,6 +3671,147 @@ export function createThemeDecorations(
       s.rotation.y = -a;
       s.scale.setScalar(1.3);
       add(s, 'sway');
+    }
+  }
+
+  if (theme === 'mid-autumn') {
+    // Full moon high in front, glowing via emissive + shared sprite.
+    const moon = fullMoon();
+    moon.position.set(Math.sin(0.5) * 3.4, 5.7, Math.cos(0.5) * 3.4);
+    add(moon, 'sway');
+    // Jade rabbits on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.2;
+      const r = moonRabbit();
+      r.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      r.rotation.y = -a;
+      r.scale.setScalar(1.35);
+      add(r, 'bob');
+    }
+    // Mooncakes on the base ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const m = mooncake();
+      m.position.set(Math.sin(a) * 1.95, 0.0, Math.cos(a) * 1.95);
+      m.rotation.y = a;
+      add(m, 'bob');
+    }
+    // Osmanthus branches around the base.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.9;
+      const b = osmanthusBranch();
+      b.position.set(Math.sin(a) * 2.0, 0.0, Math.cos(a) * 2.0);
+      b.rotation.y = -a;
+      b.rotation.z = -0.2;
+      b.scale.setScalar(1.2);
+      add(b, 'sway');
+    }
+    // Paper lanterns hanging from the canopy rim.
+    for (let i = 0; i < 6; i++) {
+      const l = paperLantern();
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      l.position.set(Math.sin(a) * 2.35, 4.35 + (i % 2) * 0.4, Math.cos(a) * 2.35);
+      add(l, 'sway');
+    }
+    // Clouds drifting around the carousel.
+    for (let i = 0; i < 5; i++) {
+      const c = cloud();
+      const a = (i / 5) * Math.PI * 2 + 0.6;
+      c.position.set(Math.sin(a) * 3.6, 1.3 + i * 0.85, Math.cos(a) * 3.6);
+      c.scale.setScalar(0.9 + (i % 3) * 0.25);
+      add(c, 'orbitCloud', { angle: a, radius: 3.6, y: 1.3 + i * 0.85, speed: 0.05 + (i % 3) * 0.02 });
+    }
+  }
+
+  if (theme === 'diwali') {
+    // Diya lamps on the base ring.
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.3;
+      const d = diyaLamp();
+      d.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      d.rotation.y = a;
+      d.scale.setScalar(1.4);
+      add(d, 'bob');
+    }
+    // Rangoli on the ground around the base (static, no floater).
+    group.add(rangoli());
+    // Marigold garlands hanging from the canopy rim.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.5;
+      const garland = marigoldGarland();
+      garland.position.set(Math.sin(a) * 2.3, 4.55, Math.cos(a) * 2.3);
+      garland.rotation.y = -a + Math.PI / 2;
+      garland.scale.setScalar(1.3);
+      add(garland, 'sway');
+    }
+    // Golden mandalas floating mid-air.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 1.1;
+      const m = goldenMandala();
+      m.position.set(Math.sin(a) * 2.6, 2.2 + i * 0.8, Math.cos(a) * 2.6);
+      m.rotation.y = -a;
+      add(m, 'sway');
+    }
+  }
+
+  if (theme === 'thanksgiving') {
+    // Low golden-hour sun — one large shared glow sprite, no light.
+    const sun = new THREE.Sprite(getGlowMaterial());
+    sun.position.set(Math.sin(-0.6) * 3.6, 5.2, Math.cos(-0.6) * 3.6);
+    sun.scale.setScalar(3.2);
+    group.add(sun);
+    // Hero turkeys — one in front, one smaller behind.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.4;
+      const t = turkey();
+      t.position.set(Math.sin(a) * 1.6, 0.0, Math.cos(a) * 1.6);
+      t.rotation.y = -a;
+      t.scale.setScalar(i === 0 ? 1.4 : 1.1);
+      add(t, 'bob');
+    }
+    // Pumpkin piles on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.8;
+      const pile = pumpkinPile();
+      pile.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      pile.rotation.y = -a;
+      add(pile, 'bob');
+    }
+    // Maple leaves drifting mid-air.
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.7;
+      const leaf = mapleLeaf();
+      leaf.position.set(Math.sin(a) * 2.5, 2.0 + i * 0.45, Math.cos(a) * 2.5);
+      leaf.rotation.y = -a;
+      leaf.scale.setScalar(1.5);
+      add(leaf, 'sway');
+    }
+    // Corn cobs on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.2;
+      const cob = cornCob();
+      cob.position.set(Math.sin(a) * 1.8, 0.0, Math.cos(a) * 1.8);
+      cob.rotation.y = a;
+      cob.scale.setScalar(1.25);
+      add(cob, 'bob');
+    }
+    // Pinecones on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 1.2;
+      const cone = pinecone();
+      cone.position.set(Math.sin(a) * 2.0, 0.0, Math.cos(a) * 2.0);
+      cone.rotation.y = a;
+      cone.scale.setScalar(1.3);
+      add(cone, 'bob');
+    }
+    // Wheat sheaves on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.6;
+      const sheaf = wheatSheaf();
+      sheaf.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      sheaf.rotation.y = -a;
+      sheaf.scale.setScalar(1.3);
+      add(sheaf, 'sway');
     }
   }
 
