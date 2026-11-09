@@ -84,8 +84,9 @@ export function offstageFor(
   };
   if (flavor === 'gift-drop') {
     // Dropped by the passing sleigh: falls from the flight path, not from a side.
-    const from = { x: 0.5, y: 5.0, z: 4.0 };
-    return { from, ctrl: { x: 0.5, y: 3.0, z: 3.6 } };
+    const x = index % 2 === 0 ? 0.6 : -0.6;
+    const from = { x, y: 5.0, z: 4.0 };
+    return { from, ctrl: { x, y: 3.0, z: 3.6 } };
   }
   if (group === 'main') {
     if (theme === 'lunar') return { from: { x: to.x, y: 7.6, z: to.z } };

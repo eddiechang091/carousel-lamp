@@ -1,19 +1,37 @@
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 import type { ThemeId } from './themes';
+import { THEMES } from './themes';
+import {
+  buildIntroTimeline,
+  offstageFor,
+  sleighDrivePose,
+  dragonDrivePose,
+  type CameraRig,
+  type EntranceGroup,
+  type EntranceItem,
+  type IntroMode,
+  type IntroPlan,
+  type OffstageFlavor,
+  type SignatureActor,
+  type Vec3,
+} from './intro-timeline';
+import { createSleigh } from './carousel-ornaments';
 
 export type ThemeDecorations = {
   group: THREE.Group;
-  /** GSAP staggered pop-in of every root decoration. */
-  enter: (instant?: boolean) => void;
-  /** GSAP shrink-out, resolves once every decoration is hidden. */
+  /**
+   * Play the intro timeline (full / short) or snap to the final pose
+   * (instant). Returns the timeline so the scene can kill it on a theme
+   * switch, or null for instant.
+   */
+  enter: (mode: IntroMode, rig?: CameraRig | null) => gsap.core.Timeline | null;
+  /** Fast exit: items fly back to their off-stage starts, power1.in. */
   leave: () => Promise<void>;
   /** Per-frame ambient animation (float, flap, sway, snow drift…). */
   update: (t: number, dt: number, reduced: boolean) => void;
   dispose: () => void;
 };
-
-type EntranceGroup = 'main' | 'flyer' | 'ambient';
 
 type Floater = {
   obj: THREE.Object3D;
@@ -23,11 +41,18 @@ type Floater = {
   extra?: Record<string, unknown>;
   /** Entrance staging: main pieces first, ambience next, flyers last. */
   group: EntranceGroup;
-  /** Fly-out start position (x/z); the floater tweens to its final spot on enter. */
-  flyFrom?: { x: number; z: number };
-  /** Final x/z when flyFrom is set (position is parked at flyFrom until enter). */
-  finalX?: number;
-  finalZ?: number;
+  /** Explicit off-stage start (world); the item is parked here until enter. */
+  from: Vec3;
+  /** Bezier arc control point, when the flight is curved. */
+  ctrl?: Vec3;
+  /** Final position (world). */
+  to: Vec3;
+  /** Start scale for the entrance (ghosts burst in from 1.5). */
+  scaleFrom?: number;
+  /** rotation.y to settle at (orbit items arrive facing travel). */
+  finalRotY?: number;
+  /** false = idle-only floater (the dragon): no wave entrance. */
+  entrance: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -381,8 +406,8 @@ function candyCane() {
 // so importing this module never touches the DOM (tests, SSR).
 let glowTexture: THREE.CanvasTexture | null = null;
 let glowMaterial: THREE.SpriteMaterial | null = null;
-function getGlowMaterial(): THREE.SpriteMaterial {
-  if (!glowMaterial) {
+function getGlowTexture(): THREE.CanvasTexture {
+  if (!glowTexture) {
     const c = document.createElement('canvas');
     c.width = 64; c.height = 64;
     const ctx = c.getContext('2d')!;
@@ -393,11 +418,16 @@ function getGlowMaterial(): THREE.SpriteMaterial {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 64, 64);
     glowTexture = new THREE.CanvasTexture(c);
+    SHARED.add(glowTexture);
+  }
+  return glowTexture;
+}
+function getGlowMaterial(): THREE.SpriteMaterial {
+  if (!glowMaterial) {
     glowMaterial = new THREE.SpriteMaterial({
-      map: glowTexture, blending: THREE.AdditiveBlending,
+      map: getGlowTexture(), blending: THREE.AdditiveBlending,
       depthWrite: false, transparent: true, opacity: 0.85,
     });
-    SHARED.add(glowTexture);
     SHARED.add(glowMaterial);
   }
   return glowMaterial;
@@ -476,6 +506,58 @@ function cloud() {
   return g;
 }
 
+// Lunar dragon: a short snake — head + 8 trailing segments along local -z,
+// facing +z. No PointLight (emissive only). The intro spiral-flies the whole
+// group; afterwards it slow-orbits the carousel top like the bats.
+function dragon() {
+  const g = new THREE.Group();
+  const bodyMat = sharedMat('dragon-body', () => new THREE.MeshStandardMaterial({
+    color: '#c81e2b', roughness: 0.4, emissive: '#ff5a3c', emissiveIntensity: 0.55,
+  }));
+  const goldMat = sharedMat('dragon-gold', () => new THREE.MeshStandardMaterial({
+    color: '#f0c75e', roughness: 0.3, metalness: 0.6,
+    emissive: '#ffbf40', emissiveIntensity: 0.4,
+  }));
+  for (let i = 0; i < 8; i++) {
+    const r = 0.11 - i * 0.008;
+    const seg = new THREE.Mesh(
+      sharedGeo(`dragon-seg-${i}`, () => new THREE.SphereGeometry(r, 12, 10)),
+      bodyMat,
+    );
+    seg.position.set(Math.sin(i * 0.6) * 0.04, Math.sin(i * 0.9) * 0.05, -0.14 - i * 0.17);
+    seg.scale.set(1, 0.9, 1.15);
+    g.add(seg);
+  }
+  const head = new THREE.Mesh(
+    sharedGeo('dragon-head', () => new THREE.SphereGeometry(0.14, 16, 12)),
+    bodyMat,
+  );
+  head.position.set(0, 0.02, 0.05);
+  g.add(head);
+  const snout = new THREE.Mesh(
+    sharedGeo('dragon-snout', () => new THREE.SphereGeometry(0.08, 12, 10)),
+    bodyMat,
+  );
+  snout.position.set(0, 0, 0.17);
+  snout.scale.set(1, 0.8, 1.2);
+  g.add(snout);
+  const eyeMat = sharedMat('dragon-eye', () => new THREE.MeshBasicMaterial({ color: '#ffe9a8' }));
+  for (const side of [-1, 1]) {
+    const horn = new THREE.Mesh(
+      sharedGeo('dragon-horn', () => new THREE.ConeGeometry(0.03, 0.16, 8)),
+      goldMat,
+    );
+    horn.position.set(side * 0.08, 0.14, 0);
+    horn.rotation.z = side * -0.5;
+    horn.rotation.x = -0.3;
+    g.add(horn);
+    const eye = new THREE.Mesh(sharedGeo('dragon-eye', () => new THREE.SphereGeometry(0.02, 8, 8)), eyeMat);
+    eye.position.set(side * 0.07, 0.06, 0.15);
+    g.add(eye);
+  }
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -485,24 +567,53 @@ export function createThemeDecorations(
   const floaters: Floater[] = [];
   const roots: THREE.Object3D[] = [];
   const snowPoints: { points: THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>; material: THREE.ShaderMaterial }[] = [];
+  const groupIndex: Record<EntranceGroup, number> = { main: 0, ambient: 0, flyer: 0 };
+  let introTl: gsap.core.Timeline | null = null;
+  let introActive = false;
+  let signature: SignatureActor = { kind: 'none', group: new THREE.Group() };
 
   const add = (
     obj: THREE.Object3D,
     kind: Floater['kind'],
     extra?: Floater['extra'],
     entranceGroup: EntranceGroup = 'main',
-    flyFrom?: { x: number; z: number },
+    opts: {
+      flavor?: OffstageFlavor;
+      scaleFrom?: number;
+      finalRotY?: number;
+      /** false = idle-only floater (the dragon): registered for update() but
+          not an entrance item — the signature drive flies it instead. */
+      entrance?: boolean;
+    } = {},
   ) => {
     obj.userData.phase = Math.random() * Math.PI * 2;
-    const floater: Floater = { obj, baseY: obj.position.y, phase: obj.userData.phase, kind, extra, group: entranceGroup, flyFrom };
-    if (flyFrom) {
-      floater.finalX = obj.position.x;
-      floater.finalZ = obj.position.z;
-      obj.position.x = flyFrom.x;
-      obj.position.z = flyFrom.z;
+    // Orbit floaters are never positioned by their builders — derive the
+    // final spot from the orbit itself so the entrance can land on it.
+    let to: Vec3 = { x: obj.position.x, y: obj.position.y, z: obj.position.z };
+    if ((kind === 'orbit' || kind === 'orbitCloud') && extra && typeof extra.angle === 'number') {
+      const radius = Number(extra.radius ?? 2.5);
+      to = {
+        x: Math.sin(Number(extra.angle)) * radius,
+        y: Number(extra.y ?? 2),
+        z: Math.cos(Number(extra.angle)) * radius,
+      };
+    }
+    const entrance = opts.entrance !== false;
+    const { from, ctrl } = entrance
+      ? offstageFor(theme, entranceGroup, to, groupIndex[entranceGroup]++, opts.flavor)
+      : { from: { ...to }, ctrl: undefined };
+    const floater: Floater = {
+      obj, baseY: to.y, phase: obj.userData.phase, kind, extra, group: entranceGroup,
+      from, ctrl, to, scaleFrom: opts.scaleFrom, finalRotY: opts.finalRotY, entrance,
+    };
+    if (entrance) {
+      // Parked off-stage (and small) from the very first frame: t=0 is a
+      // bare carousel, never a half-popped decoration.
+      obj.position.set(from.x, from.y, from.z);
+      obj.scale.setScalar(opts.scaleFrom ?? 0.55);
+      roots.push(obj);
     }
     floaters.push(floater);
-    roots.push(obj);
     group.add(obj);
   };
 
@@ -515,19 +626,20 @@ export function createThemeDecorations(
       p.rotation.y = Math.random() * Math.PI * 2;
       add(p, 'bob');
     }
-    // 5 vivid ghosts (3 expression variants) — fly out from behind the frames
+    // 5 vivid ghosts (3 expression variants) — burst out from behind the
+    // frames on big arcs, oversized at launch, then settle into a sway.
     for (let i = 0; i < 5; i++) {
       const gh = ghost();
       const a = (i / 5) * Math.PI * 2 + 1;
       const fx = Math.sin(a) * 3.1, fz = Math.cos(a) * 3.1;
       gh.position.set(fx, 1.4 + i * 0.75, fz);
-      add(gh, 'sway', undefined, 'flyer', { x: fx * 0.12, z: fz * 0.12 });
+      add(gh, 'sway', undefined, 'flyer', { flavor: 'ghost', scaleFrom: 1.5 });
     }
-    // 12 bats
+    // 12 bats sweep in from off-screen, then orbit.
     for (let i = 0; i < 12; i++) {
       const b = bat();
       const a = (i / 12) * Math.PI * 2;
-      add(b, 'orbit', { angle: a, radius: 2.4 + Math.random() * 1.2, speed: 0.25 + Math.random() * 0.4, y: 2 + Math.random() * 3.6, wobble: Math.random() }, 'flyer');
+      add(b, 'orbit', { angle: a, radius: 2.4 + Math.random() * 1.2, speed: 0.25 + Math.random() * 0.4, y: 2 + Math.random() * 3.6, wobble: Math.random() }, 'flyer', { flavor: 'bat', scaleFrom: 0.4, finalRotY: -a + Math.PI / 2 });
     }
     // Spider webs + spiders at top of carousel (attached high up)
     for (let i = 0; i < 2; i++) {
@@ -578,7 +690,8 @@ export function createThemeDecorations(
       const a = (i / 8) * Math.PI * 2 + 0.2;
       g.position.set(Math.sin(a) * 2.75, 0.62 + (i % 4) * 1.05, Math.cos(a) * 2.75);
       g.rotation.y = a;
-      add(g, 'bob');
+      // The first two gifts are dropped by the passing sleigh.
+      add(g, 'bob', undefined, 'main', i < 2 ? { flavor: 'gift-drop' } : undefined);
     }
     // Baubles swaying from the canopy rim.
     const baubleColors = ['#d23a2e', '#f0c24b', '#2a7f5f', '#cfe8ff'];
@@ -652,6 +765,13 @@ export function createThemeDecorations(
     points.name = 'christmas-snowfall';
     group.add(points);
     snowPoints.push({ points, material: mat });
+
+    // The sleigh: crosses the front of the scene during the surprise beat,
+    // then leaves. Hidden until the timeline reveals it.
+    const sleigh = createSleigh();
+    sleigh.visible = false;
+    group.add(sleigh);
+    signature = { kind: 'sleigh', group: sleigh, drive: sleighDrivePose, hideAtEnd: true };
   }
 
   if (theme === 'lunar') {
@@ -675,9 +795,31 @@ export function createThemeDecorations(
       const fw = lunarFireworkOrb();
       const a = (i / 4) * Math.PI * 2 + 0.3;
       fw.position.set(Math.sin(a) * 2.8, 3.5 + i * 0.4, Math.cos(a) * 2.8);
-      add(fw, 'orbit', { angle: a, radius: 2.8, speed: 0.18 + i * 0.04, y: 3.5 + i * 0.4, wobble: 0.4 }, 'flyer');
+      add(fw, 'orbit', { angle: a, radius: 2.8, speed: 0.18 + i * 0.04, y: 3.5 + i * 0.4, wobble: 0.4 }, 'flyer', { flavor: 'orb' });
     }
+    // The dragon: spiral-flies in during the intro, then slow-orbits the top.
+    // Idle-only floater (no wave entrance) — the signature drive flies it.
+    const dragonAngle = 0.6;
+    const dr = dragon();
+    dr.position.set(Math.sin(dragonAngle) * 3.4, 4.4, Math.cos(dragonAngle) * 3.4);
+    dr.rotation.y = Math.PI / 2 + dragonAngle;
+    add(dr, 'orbit', { angle: dragonAngle, radius: 3.4, y: 4.4, speed: 0.1, heading: 'tangent' }, 'flyer', { entrance: false });
+    signature = { kind: 'dragon', group: dr, drive: dragonDrivePose(dragonAngle) };
   }
+
+  // Boom flash: one theme-coloured glow sprite at the carousel centre,
+  // opacity 0 until the s4 flash. Own material (the shared glow texture is
+  // reused, never freed with the layer).
+  const flashMat = new THREE.SpriteMaterial({
+    map: getGlowTexture(),
+    color: new THREE.Color(THEMES[theme].glow),
+    blending: THREE.AdditiveBlending,
+    depthWrite: false, transparent: true, opacity: 0,
+  });
+  const flash = new THREE.Sprite(flashMat);
+  flash.position.set(0, 3.2, 0);
+  flash.scale.set(7, 7, 1);
+  group.add(flash);
 
   // Collect per-layer disposables: geometries / materials / textures owned
   // by THIS layer only. Shared cached resources (SHARED) are skipped — the
@@ -702,61 +844,78 @@ export function createThemeDecorations(
     });
   });
 
-  // Grouped entrance beats: main pieces pop in first, ambience follows,
-  // flyers (bats, ghosts, firework orbs) arrive last. Flyers with a
-  // flyFrom start near the column and glide out to their final spot.
-  const GROUP_DELAY: Record<EntranceGroup, number> = { main: 0.1, ambient: 0.5, flyer: 0.9 };
-
-  function enter(instant = false) {
-    if (instant) {
+  // The intro is a real timeline now (see intro-timeline.ts): five labelled
+  // beats, decorations flying in along arcs from explicit off-stage starts.
+  // The old elastic scale pop-in at the final spot is gone — it read as a
+  // load completing, not an opening.
+  function enter(mode: IntroMode, rig: CameraRig | null = null): gsap.core.Timeline | null {
+    if (mode === 'instant') {
       floaters.forEach(f => {
-        if (f.flyFrom && f.finalX !== undefined && f.finalZ !== undefined) {
-          f.obj.position.x = f.finalX;
-          f.obj.position.z = f.finalZ;
-        }
+        f.obj.position.set(f.to.x, f.to.y, f.to.z);
       });
       roots.forEach(r => r.scale.setScalar(1));
-      return;
+      if (signature.kind === 'sleigh') signature.group.visible = false;
+      for (const s of snowPoints) s.material.uniforms.uOpacity.value = 0.92;
+      flashMat.opacity = 0;
+      return null;
     }
-    const seen: Record<EntranceGroup, number> = { main: 0, ambient: 0, flyer: 0 };
-    roots.forEach((root, i) => {
-      const floater = floaters[i];
-      const groupDelay = GROUP_DELAY[floater.group] + seen[floater.group] * 0.05;
-      seen[floater.group]++;
-      root.scale.setScalar(0.001);
-      gsap.to(root.scale, {
-        x: 1, y: 1, z: 1,
-        duration: 0.9,
-        delay: groupDelay,
-        ease: 'elastic.out(1, 0.6)',
-        overwrite: true,
-      });
-      if (floater.flyFrom && floater.finalX !== undefined && floater.finalZ !== undefined) {
-        const { finalX, finalZ } = floater;
-        gsap.to(root.position, {
-          x: finalX, z: finalZ,
-          duration: 1.3,
-          delay: groupDelay,
-          ease: 'sine.out',
-          overwrite: true,
-        });
-      }
+    // Re-park everything at its off-stage start (defensive: a layer only
+    // enters once, but the timeline's fromTo re-asserts the same values).
+    floaters.forEach(f => {
+      f.obj.position.set(f.from.x, f.from.y, f.from.z);
+      f.obj.scale.setScalar(f.scaleFrom ?? 0.55);
     });
-    for (const s of snowPoints) {
-      s.material.uniforms.uOpacity.value = 0;
-      gsap.to(s.material.uniforms.uOpacity, { value: 0.92, duration: 1.4, ease: 'power2.out', overwrite: true });
+    if (signature.kind === 'sleigh') signature.group.visible = false;
+    if (signature.kind === 'dragon') {
+      // Short version: no spiral — the dragon starts on its orbit circle.
+      const f = floaters.find(fl => fl.obj === signature.group);
+      if (mode === 'short' && f) {
+        signature.group.position.set(f.to.x, f.to.y, f.to.z);
+        signature.group.rotation.y = Math.PI / 2 + Number(f.extra?.angle ?? 0.6);
+      }
     }
+    const plan: IntroPlan = {
+      items: floaters
+        .filter(f => f.entrance)
+        .map((f): EntranceItem => ({
+          obj: f.obj, from: f.from, to: f.to, ctrl: f.ctrl, group: f.group,
+          scaleFrom: f.scaleFrom, finalRotY: f.finalRotY,
+        })),
+      signature,
+      flash: flashMat,
+      snow: snowPoints[0] ? snowPoints[0].material.uniforms.uOpacity : null,
+      onIntroEnd: () => { introActive = false; },
+    };
+    // Gate idle motion for the whole intro: update() writes positions every
+    // frame and would fight the timeline tweens (the old bug class: the
+    // intro was invisible because decorations were already at their final
+    // spots on frame one).
+    introActive = true;
+    const tl = buildIntroTimeline(plan, rig, mode, rig !== null);
+    introTl = tl;
+    tl?.play(0);
+    return tl;
   }
 
   function leave() {
+    if (introTl) {
+      introTl.kill();
+      introTl = null;
+      introActive = false;
+    }
+    if (signature.kind === 'sleigh') signature.group.visible = false;
     const jobs = roots.map((root, i) => new Promise<void>(resolve => {
+      const floater = floaters.find(f => f.obj === root)!;
       gsap.killTweensOf(root.position);
+      gsap.killTweensOf(root.scale);
+      // Reverse exit: fly back out to the off-stage start, power1.in.
+      gsap.to(root.position, {
+        x: floater.from.x, y: floater.from.y, z: floater.from.z,
+        duration: 0.4, delay: i * 0.02, ease: 'power1.in', overwrite: true,
+      });
       gsap.to(root.scale, {
-        x: 0.001, y: 0.001, z: 0.001,
-        duration: 0.55,
-        delay: i * 0.03,
-        ease: 'power2.in',
-        overwrite: true,
+        x: 0.5, y: 0.5, z: 0.5,
+        duration: 0.4, delay: i * 0.02, ease: 'power1.in', overwrite: true,
         onComplete: () => resolve(),
       });
     }));
@@ -770,41 +929,49 @@ export function createThemeDecorations(
 
   function update(t: number, dt: number, reduced: boolean) {
     const k = reduced ? 0.25 : 1;
-    for (const f of floaters) {
-      const p = f.phase;
-      if (f.kind === 'bob') {
-        f.obj.position.y = f.baseY + Math.sin(t * 0.9 + p) * 0.09 * k;
-        f.obj.rotation.y += dt * 0.3 * k;
-      } else if (f.kind === 'sway') {
-        f.obj.position.y = f.baseY + Math.sin(t * 0.7 + p) * 0.07 * k;
-        f.obj.rotation.z = Math.sin(t * 0.8 + p) * 0.12 * k;
-        f.obj.rotation.y = Math.sin(t * 0.3 + p) * 0.3 * k;
-      } else if (f.kind === 'orbit') {
-        const e = f.extra ?? {};
-        const angle = Number(e.angle) + dt * (Number(e.speed) || 0.2) * k;
-        e.angle = angle;
-        const wob = Number(e.wobble) || 0;
-        f.obj.position.set(
-          Math.sin(angle) * Number(e.radius),
-          Number(e.y) + Math.sin(t * (1.3 + wob) + p) * 0.28 * k,
-          Math.cos(angle) * Number(e.radius),
-        );
-        f.obj.rotation.y = -angle + Math.PI / 2;
-        const wings = f.obj.userData.wings as THREE.Object3D[] | undefined;
-        if (wings) {
-          const flap = Math.sin(t * (7 + wob * 4) + p) * 0.7;
-          wings[0]!.rotation.z = -flap;
-          wings[1]!.rotation.z = flap;
+    // While the intro timeline owns the decorations, idle motion must not
+    // write positions — it would snap every item to its final spot on frame
+    // one and erase the entrance. Snow uniforms keep moving (they are
+    // timeline-independent).
+    if (!introActive) {
+      for (const f of floaters) {
+        const p = f.phase;
+        if (f.kind === 'bob') {
+          f.obj.position.y = f.baseY + Math.sin(t * 0.9 + p) * 0.09 * k;
+          f.obj.rotation.y += dt * 0.3 * k;
+        } else if (f.kind === 'sway') {
+          f.obj.position.y = f.baseY + Math.sin(t * 0.7 + p) * 0.07 * k;
+          f.obj.rotation.z = Math.sin(t * 0.8 + p) * 0.12 * k;
+          f.obj.rotation.y = Math.sin(t * 0.3 + p) * 0.3 * k;
+        } else if (f.kind === 'orbit') {
+          const e = f.extra ?? {};
+          const angle = Number(e.angle) + dt * (Number(e.speed) || 0.2) * k;
+          e.angle = angle;
+          const wob = Number(e.wobble) || 0;
+          f.obj.position.set(
+            Math.sin(angle) * Number(e.radius),
+            Number(e.y) + Math.sin(t * (1.3 + wob) + p) * 0.28 * k,
+            Math.cos(angle) * Number(e.radius),
+          );
+          // The dragon faces its travel direction (tangent); bats keep the
+          // legacy heading.
+          f.obj.rotation.y = e.heading === 'tangent' ? Math.PI / 2 + angle : -angle + Math.PI / 2;
+          const wings = f.obj.userData.wings as THREE.Object3D[] | undefined;
+          if (wings) {
+            const flap = Math.sin(t * (7 + wob * 4) + p) * 0.7;
+            wings[0]!.rotation.z = -flap;
+            wings[1]!.rotation.z = flap;
+          }
+        } else if (f.kind === 'orbitCloud') {
+          const e = f.extra ?? {};
+          const angle = Number(e.angle) + dt * (Number(e.speed) || 0.05) * k;
+          e.angle = angle;
+          f.obj.position.set(
+            Math.sin(angle) * Number(e.radius),
+            Number(e.y) + Math.sin(t * 0.5 + p) * 0.12 * k,
+            Math.cos(angle) * Number(e.radius),
+          );
         }
-      } else if (f.kind === 'orbitCloud') {
-        const e = f.extra ?? {};
-        const angle = Number(e.angle) + dt * (Number(e.speed) || 0.05) * k;
-        e.angle = angle;
-        f.obj.position.set(
-          Math.sin(angle) * Number(e.radius),
-          Number(e.y) + Math.sin(t * 0.5 + p) * 0.12 * k,
-          Math.cos(angle) * Number(e.radius),
-        );
       }
     }
     // Snow falls + drifts in the vertex shader; only the uniforms move.
@@ -815,6 +982,11 @@ export function createThemeDecorations(
   }
 
   function dispose() {
+    if (introTl) {
+      introTl.kill();
+      introTl = null;
+      introActive = false;
+    }
     // Stop any entrance/exit tweens still touching these objects first.
     roots.forEach(r => {
       gsap.killTweensOf(r.scale);

@@ -179,8 +179,9 @@ export default function Home() {
         setViewSaved,
       );
       const carousel = api.current;
-      // First theme application plays the in-scene intro: the camera
-      // pushes in (see createCarousel) while the decorations enter.
+      // First theme application plays the intro timeline (see
+      // intro-timeline.ts): five beats, signature fly-in, decorations
+      // arriving in waves. Mode + camera are decided inside setTheme.
       carousel.setTheme(resolveTheme(themeMode), false);
       themeFirstApplied.current = true;
       carousel.ready.then(async () => {
