@@ -2723,6 +2723,239 @@ function goldenMandala() {
   return g;
 }
 
+// ---------------------------------------------------------------------------
+// Thanksgiving (Canadian date, 2nd Monday of October): turkey, pumpkin
+// piles, maple leaves, corn, pinecones, wheat sheaves. No PointLight —
+// golden-hour warmth reads via emissive + one large shared glow sprite
+// low in the sky.
+// ---------------------------------------------------------------------------
+
+// Turkey — brown body, fanned tail in maple red / pumpkin / wheat gold,
+// head with beak and wattle.
+function turkey() {
+  const g = new THREE.Group();
+  const brown = sharedMat('thanksgiving-turkey-brown', () => new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.7 }));
+  const body = new THREE.Mesh(sharedGeo('thanksgiving-turkey-body', () => new THREE.SphereGeometry(0.16, 16, 12)), brown);
+  body.scale.set(1, 0.9, 1.2);
+  body.position.y = 0.18;
+  g.add(body);
+  const tailColors = ['#c41e3a', '#d96b27', '#daa520', '#d96b27', '#c41e3a'];
+  for (let i = 0; i < 5; i++) {
+    const col = tailColors[i];
+    const feather = new THREE.Mesh(sharedGeo('thanksgiving-turkey-feather', () => new THREE.SphereGeometry(0.07, 10, 8)),
+      sharedMat(`thanksgiving-turkey-feather-${col}`, () => new THREE.MeshStandardMaterial({
+        color: col, roughness: 0.6, emissive: col, emissiveIntensity: 0.3,
+      })));
+    const a = (i - 2) * 0.38;
+    feather.position.set(Math.sin(a) * 0.16, 0.3, -0.16);
+    feather.scale.set(0.55, 1.7, 0.2);
+    feather.rotation.z = -a;
+    feather.rotation.x = -0.25;
+    g.add(feather);
+  }
+  const head = new THREE.Mesh(sharedGeo('thanksgiving-turkey-head', () => new THREE.SphereGeometry(0.06, 12, 10)), brown);
+  head.position.set(0, 0.38, 0.15);
+  g.add(head);
+  const beak = new THREE.Mesh(
+    sharedGeo('thanksgiving-turkey-beak', () => new THREE.ConeGeometry(0.02, 0.05, 8)),
+    sharedMat('thanksgiving-turkey-beak', () => new THREE.MeshStandardMaterial({ color: '#ff9933', roughness: 0.5 })),
+  );
+  beak.rotation.x = Math.PI / 2;
+  beak.position.set(0, 0.37, 0.22);
+  g.add(beak);
+  const wattle = new THREE.Mesh(
+    sharedGeo('thanksgiving-turkey-wattle', () => new THREE.SphereGeometry(0.018, 8, 6)),
+    sharedMat('thanksgiving-turkey-wattle', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.5, emissive: '#c41e3a', emissiveIntensity: 0.4 })),
+  );
+  wattle.position.set(0, 0.34, 0.21);
+  g.add(wattle);
+  const eyeMat = sharedMat('thanksgiving-turkey-eye', () => new THREE.MeshBasicMaterial({ color: '#1a1a1a' }));
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(sharedGeo('thanksgiving-turkey-eye', () => new THREE.SphereGeometry(0.009, 6, 6)), eyeMat);
+    eye.position.set(side * 0.03, 0.4, 0.2);
+    g.add(eye);
+    const wing = new THREE.Mesh(sharedGeo('thanksgiving-turkey-wing', () => new THREE.SphereGeometry(0.09, 10, 8)), brown);
+    wing.position.set(side * 0.15, 0.18, 0.02);
+    wing.scale.set(0.4, 0.9, 1.1);
+    g.add(wing);
+    const leg = new THREE.Mesh(sharedGeo('thanksgiving-turkey-leg', () => new THREE.CylinderGeometry(0.012, 0.012, 0.08, 6)),
+      sharedMat('thanksgiving-turkey-leg', () => new THREE.MeshStandardMaterial({ color: '#ff9933', roughness: 0.6 })));
+    leg.position.set(side * 0.06, 0.04, 0.05);
+    g.add(leg);
+  }
+  return g;
+}
+
+// Plain harvest pumpkin — the shared pumpkin body/lobes/stem, no face.
+function harvestPumpkin() {
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(
+    sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 16, 12)),
+    sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05, emissive: '#ff6a1a', emissiveIntensity: 0.5 })),
+  );
+  body.scale.set(1, 0.82, 1); g.add(body);
+  for (const sx of [-0.1, 0.1]) {
+    const lobe = new THREE.Mesh(
+      sharedGeo('pumpkin-lobe', () => new THREE.SphereGeometry(0.19, 16, 12)),
+      sharedMat('pumpkin-lobe', () => new THREE.MeshStandardMaterial({ color: '#e06810', roughness: 0.6 })),
+    );
+    lobe.position.set(sx, 0, 0); lobe.scale.set(1, 0.78, 0.9); g.add(lobe);
+  }
+  const stem = new THREE.Mesh(
+    sharedGeo('pumpkin-stem', () => new THREE.CylinderGeometry(0.03, 0.05, 0.1, 8)),
+    sharedMat('pumpkin-stem', () => new THREE.MeshStandardMaterial({ color: '#3f6b2a', roughness: 0.8 })),
+  );
+  stem.position.y = 0.2; g.add(stem);
+  return g;
+}
+
+// A pile of three harvest pumpkins.
+function pumpkinPile() {
+  const g = new THREE.Group();
+  const spots: [number, number, number, number][] = [
+    [0, 0, 0, 1], [-0.2, 0, 0.08, 0.8], [0.18, 0, -0.06, 0.75],
+  ];
+  for (const [x, y, z, s] of spots) {
+    const p = harvestPumpkin();
+    p.position.set(x, y + 0.18 * s, z);
+    p.scale.setScalar(s);
+    p.rotation.y = Math.random() * Math.PI;
+    g.add(p);
+  }
+  return g;
+}
+
+// Stylized 5-lobe maple leaf — flat shape, maple red, double-sided.
+function mapleLeaf() {
+  const g = new THREE.Group();
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -0.16);
+  shape.lineTo(0, -0.06);
+  shape.lineTo(-0.05, -0.08);
+  shape.lineTo(-0.13, -0.02);
+  shape.lineTo(-0.07, 0.02);
+  shape.lineTo(-0.16, 0.06);
+  shape.lineTo(-0.09, 0.1);
+  shape.lineTo(-0.11, 0.16);
+  shape.lineTo(-0.04, 0.13);
+  shape.lineTo(0, 0.18);
+  shape.lineTo(0.04, 0.13);
+  shape.lineTo(0.11, 0.16);
+  shape.lineTo(0.09, 0.1);
+  shape.lineTo(0.16, 0.06);
+  shape.lineTo(0.07, 0.02);
+  shape.lineTo(0.13, -0.02);
+  shape.lineTo(0.05, -0.08);
+  shape.lineTo(0, -0.06);
+  const leaf = new THREE.Mesh(
+    sharedGeo('thanksgiving-maple-leaf', () => new THREE.ShapeGeometry(shape)),
+    sharedMat('thanksgiving-maple-leaf', () => new THREE.MeshStandardMaterial({
+      color: '#c41e3a', roughness: 0.6, emissive: '#c41e3a', emissiveIntensity: 0.35, side: THREE.DoubleSide,
+    })),
+  );
+  g.add(leaf);
+  const stem = new THREE.Mesh(
+    sharedGeo('thanksgiving-maple-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.1, 6)),
+    sharedMat('thanksgiving-maple-stem', () => new THREE.MeshStandardMaterial({ color: '#8b5a2b', roughness: 0.8 })),
+  );
+  stem.position.y = -0.2;
+  g.add(stem);
+  return g;
+}
+
+// Corn cob — golden capsule, green husk peeling at the foot, silk on top.
+function cornCob() {
+  const g = new THREE.Group();
+  const cob = new THREE.Mesh(
+    sharedGeo('thanksgiving-corn', () => new THREE.CapsuleGeometry(0.055, 0.16, 4, 10)),
+    sharedMat('thanksgiving-corn', () => new THREE.MeshStandardMaterial({
+      color: '#ffd700', roughness: 0.45, emissive: '#ffd700', emissiveIntensity: 0.25,
+    })),
+  );
+  cob.position.y = 0.2;
+  g.add(cob);
+  const huskMat = sharedMat('thanksgiving-corn-husk', () => new THREE.MeshStandardMaterial({ color: '#4a7a3a', roughness: 0.7 }));
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const husk = new THREE.Mesh(sharedGeo('thanksgiving-corn-husk', () => new THREE.ConeGeometry(0.05, 0.18, 8)), huskMat);
+    husk.position.set(Math.cos(a) * 0.05, 0.08, Math.sin(a) * 0.05);
+    husk.rotation.z = Math.cos(a) * 0.5;
+    husk.rotation.x = -Math.sin(a) * 0.5;
+    g.add(husk);
+  }
+  for (let i = 0; i < 3; i++) {
+    const silk = new THREE.Mesh(
+      sharedGeo('thanksgiving-corn-silk', () => new THREE.CylinderGeometry(0.006, 0.006, 0.08, 6)),
+      sharedMat('thanksgiving-corn-silk', () => new THREE.MeshStandardMaterial({ color: '#f8de7e', roughness: 0.6 })),
+    );
+    silk.position.set((i - 1) * 0.02, 0.34, 0);
+    silk.rotation.z = (i - 1) * 0.3;
+    g.add(silk);
+  }
+  return g;
+}
+
+// Pinecone — brown core with three rings of overlapping scales.
+function pinecone() {
+  const g = new THREE.Group();
+  const core = new THREE.Mesh(
+    sharedGeo('thanksgiving-pinecone-core', () => new THREE.ConeGeometry(0.09, 0.24, 12)),
+    sharedMat('thanksgiving-pinecone-core', () => new THREE.MeshStandardMaterial({ color: '#6b4423', roughness: 0.85 })),
+  );
+  core.position.y = 0.12;
+  g.add(core);
+  const scaleMat = sharedMat('thanksgiving-pinecone-scale', () => new THREE.MeshStandardMaterial({
+    color: '#5a3a1e', roughness: 0.85, emissive: '#5a3a1e', emissiveIntensity: 0.1,
+  }));
+  for (let ring = 0; ring < 3; ring++) {
+    const y = 0.05 + ring * 0.07;
+    const r = 0.075 - ring * 0.015;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + ring * 0.5;
+      const scale = new THREE.Mesh(sharedGeo('thanksgiving-pinecone-scale', () => new THREE.SphereGeometry(0.028, 8, 6)), scaleMat);
+      scale.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+      scale.scale.set(1, 0.6, 0.7);
+      scale.rotation.y = -a;
+      g.add(scale);
+    }
+  }
+  return g;
+}
+
+// Wheat sheaf — five stalks with grain heads, tied with a red band.
+function wheatSheaf() {
+  const g = new THREE.Group();
+  const stalkMat = sharedMat('thanksgiving-wheat-stalk', () => new THREE.MeshStandardMaterial({ color: '#daa520', roughness: 0.6 }));
+  const grainMat = sharedMat('thanksgiving-wheat-grain', () => new THREE.MeshStandardMaterial({
+    color: '#daa520', roughness: 0.5, emissive: '#daa520', emissiveIntensity: 0.45,
+  }));
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const tilt = 0.12;
+    const stalk = new THREE.Mesh(sharedGeo('thanksgiving-wheat-stalk', () => new THREE.CylinderGeometry(0.008, 0.008, 0.45, 6)), stalkMat);
+    stalk.position.set(Math.cos(a) * 0.03, 0.225, Math.sin(a) * 0.03);
+    stalk.rotation.z = Math.cos(a) * tilt;
+    stalk.rotation.x = -Math.sin(a) * tilt;
+    g.add(stalk);
+    for (let j = 0; j < 5; j++) {
+      const grain = new THREE.Mesh(sharedGeo('thanksgiving-wheat-grain', () => new THREE.SphereGeometry(0.02, 8, 6)), grainMat);
+      const gy = 0.38 + j * 0.035;
+      grain.position.set(Math.cos(a) * (0.03 + tilt * gy * 0.5), gy, Math.sin(a) * (0.03 + tilt * gy * 0.5));
+      grain.scale.set(1, 1.8, 1);
+      grain.rotation.z = (j % 2 === 0 ? 0.4 : -0.4);
+      g.add(grain);
+    }
+  }
+  const band = new THREE.Mesh(
+    sharedGeo('thanksgiving-wheat-band', () => new THREE.TorusGeometry(0.075, 0.015, 8, 20)),
+    sharedMat('thanksgiving-wheat-band', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.5 })),
+  );
+  band.rotation.x = Math.PI / 2;
+  band.position.y = 0.15;
+  g.add(band);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -3518,6 +3751,67 @@ export function createThemeDecorations(
       m.position.set(Math.sin(a) * 2.6, 2.2 + i * 0.8, Math.cos(a) * 2.6);
       m.rotation.y = -a;
       add(m, 'sway');
+    }
+  }
+
+  if (theme === 'thanksgiving') {
+    // Low golden-hour sun — one large shared glow sprite, no light.
+    const sun = new THREE.Sprite(getGlowMaterial());
+    sun.position.set(Math.sin(-0.6) * 3.6, 5.2, Math.cos(-0.6) * 3.6);
+    sun.scale.setScalar(3.2);
+    group.add(sun);
+    // Hero turkeys — one in front, one smaller behind.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.4;
+      const t = turkey();
+      t.position.set(Math.sin(a) * 1.6, 0.0, Math.cos(a) * 1.6);
+      t.rotation.y = -a;
+      t.scale.setScalar(i === 0 ? 1.4 : 1.1);
+      add(t, 'bob');
+    }
+    // Pumpkin piles on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.8;
+      const pile = pumpkinPile();
+      pile.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      pile.rotation.y = -a;
+      add(pile, 'bob');
+    }
+    // Maple leaves drifting mid-air.
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.7;
+      const leaf = mapleLeaf();
+      leaf.position.set(Math.sin(a) * 2.5, 2.0 + i * 0.45, Math.cos(a) * 2.5);
+      leaf.rotation.y = -a;
+      leaf.scale.setScalar(1.5);
+      add(leaf, 'sway');
+    }
+    // Corn cobs on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.2;
+      const cob = cornCob();
+      cob.position.set(Math.sin(a) * 1.8, 0.0, Math.cos(a) * 1.8);
+      cob.rotation.y = a;
+      cob.scale.setScalar(1.25);
+      add(cob, 'bob');
+    }
+    // Pinecones on the base ring.
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 1.2;
+      const cone = pinecone();
+      cone.position.set(Math.sin(a) * 2.0, 0.0, Math.cos(a) * 2.0);
+      cone.rotation.y = a;
+      cone.scale.setScalar(1.3);
+      add(cone, 'bob');
+    }
+    // Wheat sheaves on the base ring.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.6;
+      const sheaf = wheatSheaf();
+      sheaf.position.set(Math.sin(a) * 1.7, 0.0, Math.cos(a) * 1.7);
+      sheaf.rotation.y = -a;
+      sheaf.scale.setScalar(1.3);
+      add(sheaf, 'sway');
     }
   }
 
