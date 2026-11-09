@@ -67,6 +67,8 @@ export function createCarousel(
   const hemi = new THREE.HemisphereLight('#eef3ff', '#939dad', 1.1);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#ffe0ae', 1.5);
+  // Preallocated: the per-frame sun colour lerp below used to `new` one.
+  const daySunColor = new THREE.Color('#fff0dc');
   sun.position.set(-6, 7.5, 4);
   sun.target.position.set(0, 3, 0);
   scene.add(sun.target);
@@ -135,11 +137,14 @@ export function createCarousel(
     x = 0,
     y = 0,
     z = 0,
+    shadow: 'none' | 'cast' | 'both' = 'none',
   ) {
     const m = new THREE.Mesh(geometry, mat);
     m.position.set(x, y, z);
-    m.castShadow = true;
-    m.receiveShadow = true;
+    // Only large pieces cast/receive shadows (base, roof, column, frames):
+    // small trim used to render into the shadow map too, for nothing.
+    m.castShadow = shadow !== 'none';
+    m.receiveShadow = shadow === 'both';
     parent.add(m);
     return m;
   }
@@ -150,7 +155,7 @@ export function createCarousel(
     mat: THREE.Material = gold,
   ) {
     const m = mesh(
-      new THREE.TorusGeometry(radius, tube, 8, 96),
+      new THREE.TorusGeometry(radius, tube, 8, 64),
       mat,
       root,
       0,
@@ -233,10 +238,10 @@ export function createCarousel(
     metalness: 0.03,
   });
   // ---- Clock-themed tiered base ----
-  mesh(new THREE.CylinderGeometry(1.5, 1.44, 0.18, 96), cream, root, 0, 0.13);
-  mesh(new THREE.CylinderGeometry(1.46, 1.46, 0.5, 96), clockMat, root, 0, 0.46);
-  mesh(new THREE.CylinderGeometry(1.52, 1.48, 0.1, 96), red, root, 0, 0.76);
-  mesh(new THREE.CylinderGeometry(1.42, 1.48, 0.08, 96), sky, root, 0, 0.84);
+  mesh(new THREE.CylinderGeometry(1.5, 1.44, 0.18, 64), cream, root, 0, 0.13, 0, 'both');
+  mesh(new THREE.CylinderGeometry(1.46, 1.46, 0.5, 64), clockMat, root, 0, 0.46, 0, 'both');
+  mesh(new THREE.CylinderGeometry(1.52, 1.48, 0.1, 64), red, root, 0, 0.76, 0, 'both');
+  mesh(new THREE.CylinderGeometry(1.42, 1.48, 0.08, 64), sky, root, 0, 0.84, 0, 'both');
   ring(1.47, 0.22, 0.025, gold);
   ring(1.49, 0.71, 0.03, gold);
   ring(1.45, 0.88, 0.022, gold);
@@ -253,10 +258,10 @@ export function createCarousel(
     foot.scale.set(1, 0.48, 1);
   }
   // ---- Candy-cane central column ----
-  mesh(new THREE.CylinderGeometry(0.3, 0.34, 4.14, 48), candyMat, root, 0, 2.95);
+  mesh(new THREE.CylinderGeometry(0.3, 0.34, 4.14, 48), candyMat, root, 0, 2.95, 0, 'cast');
   ring(0.35, 1.0, 0.03, gold);
   ring(0.31, 4.9, 0.03, gold);
-  mesh(new THREE.CylinderGeometry(0.5, 0.32, 0.42, 48), cream, root, 0, 5.2);
+  mesh(new THREE.CylinderGeometry(0.5, 0.32, 0.42, 48), cream, root, 0, 5.2, 0, 'cast');
   ring(0.52, 5.41, 0.03, gold);
   const concealedLight = new THREE.MeshStandardMaterial({
     color: '#e0bd75',
@@ -264,8 +269,7 @@ export function createCarousel(
     emissiveIntensity: 0,
     roughness: 0.45,
   });
-  const lightRing = ring(0.72, 5.26, 0.042, concealedLight);
-  lightRing.castShadow = false;
+  ring(0.72, 5.26, 0.042, concealedLight);
   // ---- Striped scalloped canopy ----
   const roofProfile = [
     new THREE.Vector2(0.06, 6.35),
@@ -285,6 +289,11 @@ export function createCarousel(
         Math.PI / 10 + 0.001,
       ),
       roofMaterials[i % 2],
+      root,
+      0,
+      0,
+      0,
+      'cast',
     );
     m.material.side = THREE.DoubleSide;
   }
@@ -295,7 +304,8 @@ export function createCarousel(
     roughness: 0.85,
     side: THREE.DoubleSide,
   });
-  const lining = mesh(
+  // Roof lining: no shadow (it hangs under the canopy).
+  mesh(
     new THREE.LatheGeometry(
       roofProfile.map((p) => new THREE.Vector2(p.x * 0.985, p.y - 0.028)),
       96,
@@ -303,12 +313,11 @@ export function createCarousel(
     shadeMat,
     root,
   );
-  lining.castShadow = false;
   // Scalloped fascia hanging from the canopy rim.
-  const fascia = new THREE.CylinderGeometry(2.2, 2.2, 0.42, 256, 1, true);
+  const fascia = new THREE.CylinderGeometry(2.2, 2.2, 0.42, 64, 1, true);
   const positions = fascia.attributes.position;
-  for (let i = 0; i <= 256; i++) {
-    const fraction = ((i / 256) * 16) % 1;
+  for (let i = 0; i <= 64; i++) {
+    const fraction = ((i / 64) * 16) % 1;
     positions.setY(i, 0.21 + Math.sin(fraction * Math.PI) * 0.13);
   }
   positions.needsUpdate = true;
@@ -318,7 +327,7 @@ export function createCarousel(
     roughness: 0.6,
     side: THREE.DoubleSide,
   });
-  mesh(fascia, fasciaMaterial, root, 0, 5.16);
+  mesh(fascia, fasciaMaterial, root, 0, 5.16, 0, 'cast');
   ring(2.2, 4.97, 0.03, gold);
   // Fringe tassels along the scalloped edge.
   for (let i = 0; i < 32; i++) {
@@ -440,8 +449,6 @@ export function createCarousel(
       3.3,
       Math.cos(angle) * 0.86,
     );
-    volume.castShadow = false;
-    volume.receiveShadow = false;
     volume.renderOrder = 2;
   }
   const horses: THREE.Group[] = [];
@@ -495,10 +502,14 @@ export function createCarousel(
     }
   }
   function frameTexture(index: number, image?: HTMLImageElement, caption = '') {
+    // 410x512 canvas (0.8x of 512x640): same card layout, 36% less texture
+    // memory across 16 frames. All drawing below is in 512x640 space and
+    // scaled by the transform, so coordinates stay untouched.
     const cv = document.createElement('canvas');
-    cv.width = 512;
-    cv.height = 640;
+    cv.width = 410;
+    cv.height = 512;
     const c = cv.getContext('2d')!;
+    c.scale(0.8, 0.8);
     c.fillStyle = '#fff9ed';
     c.fillRect(0, 0, 512, 640);
     if (image) {
@@ -535,16 +546,30 @@ export function createCarousel(
       -length / 2,
     );
   }
+  // 4 gem colours share 4 materials (was one MeshPhysicalMaterial with
+  // transmission per gem — transmission forces an extra scene render pass).
+  // MeshStandardMaterial + emissive reads as a gem at this size.
+  const GEM_COLORS = ['#b5cbdf', '#e6b5ae', '#e5d3a3', '#b7caab'];
+  const gemMaterials = GEM_COLORS.map(
+    (color) =>
+      new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.16,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.9,
+        emissive: color,
+        emissiveIntensity: 0.35,
+      }),
+  );
+  const gemGeometries = new Map<number, THREE.IcosahedronGeometry>();
   function gem(parent: THREE.Object3D, y: number, index: number, size = 0.046) {
-    const m = new THREE.MeshPhysicalMaterial({
-      color: ['#b5cbdf', '#e6b5ae', '#e5d3a3', '#b7caab'][index % 4],
-      roughness: 0.16,
-      metalness: 0.1,
-      transmission: 0.25,
-      transparent: true,
-      opacity: 0.9,
-    });
-    mesh(new THREE.IcosahedronGeometry(size, 1), m, parent, 0, y);
+    let geo = gemGeometries.get(size);
+    if (!geo) {
+      geo = new THREE.IcosahedronGeometry(size, 1);
+      gemGeometries.set(size, geo);
+    }
+    mesh(geo, gemMaterials[index % 4], parent, 0, y);
   }
   const charmShape = new THREE.Shape();
   for (let point = 0; point < 10; point++) {
@@ -598,6 +623,10 @@ export function createCarousel(
         new THREE.BoxGeometry(0.63, 0.8, 0.027),
         neutral.clone(),
         group,
+        0,
+        0,
+        0,
+        'cast',
       );
       frame.userData.photo = index;
       hits.push(frame);
@@ -914,7 +943,7 @@ export function createCarousel(
     shadeMat.emissiveIntensity = night * 1.1;
     hemi.intensity = 0.42 - night * 0.22;
     sun.intensity = 3.1 - night * 3.08;
-    sun.color.setRGB(1, .745, .423).lerp(new THREE.Color('#fff0dc'), night);
+    sun.color.setRGB(1, .745, .423).lerp(daySunColor, night);
     daylight.intensity = 108 * (1 - night);
     daylightRim.intensity = .92 * (1 - night);
     blue.intensity = 0.55 - night * 0.22;

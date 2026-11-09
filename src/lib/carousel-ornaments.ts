@@ -4,7 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const paint = (color: string, metalness = 0.04) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.54, metalness });
 const brass = paint('#b58b3b', 0.64);
-function consolidate(group: THREE.Group) {
+function consolidate(group: THREE.Group, shadow: 'none' | 'cast' | 'both' = 'none') {
   group.updateWorldMatrix(true, true);
   const inverse = group.matrixWorld.clone().invert();
   const batches = new Map<THREE.Material, THREE.BufferGeometry[]>(),
@@ -27,7 +27,7 @@ function consolidate(group: THREE.Group) {
     const geometry = mergeGeometries(geometries, false);
     if (!geometry)
       throw new Error('Unable to combine carousel ornament geometry');
-    solid(group, geometry, material);
+    solid(group, geometry, material, [0, 0, 0], shadow);
     geometries.forEach((g) => g.dispose());
   }
   originals.forEach((g) => g.dispose());
@@ -38,11 +38,14 @@ function solid(
   geometry: THREE.BufferGeometry,
   material: THREE.Material,
   position: number[] = [0, 0, 0],
+  shadow: 'none' | 'cast' | 'both' = 'none',
 ) {
   const object = new THREE.Mesh(geometry, material);
   object.position.set(position[0], position[1], position[2]);
-  object.castShadow = true;
-  object.receiveShadow = true;
+  // Only large pieces (horses, poles) cast shadows; garden petals and
+  // other small parts used to render into the shadow map too.
+  object.castShadow = shadow !== 'none';
+  object.receiveShadow = shadow === 'both';
   parent.add(object);
   return object;
 }
@@ -315,7 +318,7 @@ export function createHorse(index: number) {
       0.027,
     );
   }
-  consolidate(group);
+  consolidate(group, 'cast');
   return group;
 }
 export function addGarden(parent: THREE.Object3D) {
@@ -353,13 +356,12 @@ export function addGarden(parent: THREE.Object3D) {
         fx = x + Math.sin(a) * 0.1,
         fz = z + Math.cos(a) * 0.1,
         fy = 0.9 + (f % 2) * 0.11;
-      const stem = solid(
+      solid(
         garden,
         new THREE.CylinderGeometry(0.006, 0.009, fy - 0.75, 5),
         greens[0],
         [fx, (fy + 0.75) / 2, fz],
       );
-      stem.castShadow = false;
       const blossom = new THREE.Group();
       blossom.position.set(fx, fy, fz);
       blossom.rotation.set(0.25 * Math.sin(a), a, 0.22 * Math.cos(a));
@@ -392,6 +394,7 @@ export function addPole(
       new THREE.CylinderGeometry(0.018, 0.021, top - bottom, 12),
       paint('#ddc9a1', 0.24),
       [x, (top + bottom) / 2, z],
+      'cast',
     );
   pole.name = 'connected-carousel-pole';
   for (const y of [bottom + 0.025, top - 0.035]) {
@@ -402,8 +405,8 @@ export function addPole(
     ]);
   }
   const path: THREE.Vector3[] = [];
-  for (let i = 0; i <= 220; i++) {
-    const t = i / 220,
+  for (let i = 0; i <= 120; i++) {
+    const t = i / 120,
       a = t * Math.PI * 2 * 12;
     path.push(
       new THREE.Vector3(
@@ -414,5 +417,5 @@ export function addPole(
     );
   }
   const helix = new THREE.CatmullRomCurve3(path);
-  solid(parent, new THREE.TubeGeometry(helix, 220, 0.004, 4, false), brass);
+  solid(parent, new THREE.TubeGeometry(helix, 120, 0.004, 4, false), brass);
 }

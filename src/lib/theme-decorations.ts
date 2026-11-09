@@ -106,7 +106,7 @@ function pumpkinFaceTexture(faceVariant: number): THREE.CanvasTexture {
 function pumpkin(faceVariant: number) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 24, 18)),
+    sharedGeo('pumpkin-body', () => new THREE.SphereGeometry(0.22, 16, 12)),
     sharedMat('pumpkin-body', () => new THREE.MeshStandardMaterial({ color: '#f07818', roughness: 0.55, metalness: 0.05 })),
   );
   body.scale.set(1, 0.82, 1); g.add(body);
@@ -425,7 +425,7 @@ function lunarFireworkOrb() {
 function lantern(withLight = false) {
   const g = new THREE.Group();
   const body = new THREE.Mesh(
-    sharedGeo('lantern-body', () => new THREE.SphereGeometry(0.14, 24, 18)),
+    sharedGeo('lantern-body', () => new THREE.SphereGeometry(0.14, 16, 12)),
     sharedMat('lantern-body', () => new THREE.MeshStandardMaterial({
       color: '#d2222d', roughness: 0.45,
       emissive: '#ff4d2e', emissiveIntensity: 0.55,
