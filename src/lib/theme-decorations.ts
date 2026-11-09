@@ -1740,6 +1740,262 @@ function easterBasket() {
   return g;
 }
 
+// Mother's Day: one carnation — ruffled pink head on a green stem.
+function carnationHead() {
+  const g = new THREE.Group();
+  const pink = sharedMat('md-carnation', () => new THREE.MeshStandardMaterial({
+    color: '#ff69b4', roughness: 0.55,
+    emissive: '#c71585', emissiveIntensity: 0.25,
+  }));
+  const center = new THREE.Mesh(
+    sharedGeo('md-carnation-center', () => new THREE.SphereGeometry(0.035, 10, 8)),
+    sharedMat('md-carnation-center', () => new THREE.MeshStandardMaterial({
+      color: '#e85a9b', roughness: 0.5,
+    })),
+  );
+  center.scale.y = 0.7;
+  g.add(center);
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const petal = new THREE.Mesh(
+      sharedGeo('md-carnation-petal', () => new THREE.SphereGeometry(0.032, 8, 6)),
+      pink,
+    );
+    petal.position.set(Math.sin(a) * 0.045, 0.005, Math.cos(a) * 0.045);
+    petal.scale.set(1, 0.35, 1.1);
+    petal.rotation.y = a;
+    g.add(petal);
+  }
+  return g;
+}
+
+// Mother's Day: bouquet of 5 carnations in a beige paper wrap.
+function carnationBouquet() {
+  const g = new THREE.Group();
+  const stemMat = sharedMat('md-stem', () => new THREE.MeshStandardMaterial({
+    color: '#8fbc8f', roughness: 0.7,
+  }));
+  const headOffsets = [
+    [0, 0.42, 0, 0], [0.07, 0.36, 0.04, 0.5], [-0.07, 0.36, 0.03, -0.4],
+    [0.03, 0.35, -0.07, 0.2], [-0.04, 0.35, -0.06, -0.2],
+  ];
+  for (const [x, y, z, tilt] of headOffsets) {
+    const stem = new THREE.Mesh(
+      sharedGeo('md-stem', () => new THREE.CylinderGeometry(0.008, 0.008, 0.3, 6)),
+      stemMat,
+    );
+    stem.position.set(x * 0.4, 0.22, z * 0.4);
+    stem.rotation.z = tilt * 0.3;
+    g.add(stem);
+    const head = carnationHead();
+    head.position.set(x, y, z);
+    head.rotation.x = tilt * 0.3;
+    g.add(head);
+  }
+  const wrap = new THREE.Mesh(
+    sharedGeo('md-wrap', () => new THREE.ConeGeometry(0.15, 0.26, 12, 1, true)),
+    sharedMat('md-wrap', () => new THREE.MeshStandardMaterial({
+      color: '#f5f5dc', roughness: 0.7, side: THREE.DoubleSide,
+    })),
+  );
+  wrap.position.y = 0.13;
+  g.add(wrap);
+  const ribbon = new THREE.Mesh(
+    sharedGeo('md-ribbon', () => new THREE.TorusGeometry(0.085, 0.01, 8, 16)),
+    sharedMat('md-ribbon', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.4, emissive: '#c71585', emissiveIntensity: 0.3,
+    })),
+  );
+  ribbon.rotation.x = Math.PI / 2;
+  ribbon.position.y = 0.2;
+  g.add(ribbon);
+  return g;
+}
+
+// Mother's Day: heart teacup — pearl cup, amber tea, heart emblem, saucer.
+function heartTeacup() {
+  const g = new THREE.Group();
+  const pearl = sharedMat('md-cup', () => new THREE.MeshStandardMaterial({
+    color: '#fdf5e6', roughness: 0.35,
+  }));
+  const saucer = new THREE.Mesh(
+    sharedGeo('md-saucer', () => new THREE.CylinderGeometry(0.13, 0.1, 0.015, 16)),
+    pearl,
+  );
+  saucer.position.y = 0.008;
+  g.add(saucer);
+  const cup = new THREE.Mesh(
+    sharedGeo('md-cup', () => new THREE.CylinderGeometry(0.095, 0.07, 0.1, 16)),
+    pearl,
+  );
+  cup.position.y = 0.065;
+  g.add(cup);
+  const tea = new THREE.Mesh(
+    sharedGeo('md-tea', () => new THREE.CylinderGeometry(0.085, 0.085, 0.008, 16)),
+    sharedMat('md-tea', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.25, emissive: '#d4a24a', emissiveIntensity: 0.25,
+    })),
+  );
+  tea.position.y = 0.11;
+  g.add(tea);
+  const handle = new THREE.Mesh(
+    sharedGeo('md-cup-handle', () => new THREE.TorusGeometry(0.045, 0.008, 8, 14, Math.PI)),
+    pearl,
+  );
+  handle.position.set(0.1, 0.065, 0);
+  handle.rotation.z = -Math.PI / 2;
+  g.add(handle);
+  const heart = new THREE.Mesh(
+    sharedGeo('md-cup-heart', () => new THREE.ExtrudeGeometry(heartShape(0.55), { depth: 0.012, bevelEnabled: false })),
+    sharedMat('md-cup-heart', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.35, emissive: '#c71585', emissiveIntensity: 0.4,
+    })),
+  );
+  heart.position.set(0, 0.03, 0.085);
+  g.add(heart);
+  return g;
+}
+
+// Mother's Day: handwritten envelope — cream envelope, letter peeking out
+// with a "Thank you, Mom" note, red wax seal.
+function loveLetter() {
+  const g = new THREE.Group();
+  const tex = sharedTex('md-letter-note', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 160;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#fffdf5'; c.fillRect(0, 0, 256, 160);
+    c.fillStyle = '#c71585';
+    c.font = 'italic 30px cursive';
+    c.textAlign = 'center';
+    c.fillText('Thank you,', 128, 62);
+    c.fillText('Mom ♥', 128, 105);
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const note = new THREE.Mesh(
+    sharedGeo('md-note', () => new THREE.PlaneGeometry(0.2, 0.125)),
+    sharedMat('md-note', () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.6, side: THREE.DoubleSide })),
+  );
+  note.position.set(0, 0.13, 0);
+  note.rotation.x = -0.15;
+  g.add(note);
+  const env = new THREE.Mesh(
+    sharedGeo('md-envelope', () => new THREE.BoxGeometry(0.24, 0.16, 0.012)),
+    sharedMat('md-envelope', () => new THREE.MeshStandardMaterial({ color: '#f5f5dc', roughness: 0.7 })),
+  );
+  env.position.y = 0.08;
+  g.add(env);
+  const flapShape = new THREE.Shape();
+  flapShape.moveTo(-0.12, 0.16);
+  flapShape.lineTo(0.12, 0.16);
+  flapShape.lineTo(0, 0.05);
+  flapShape.closePath();
+  const flap = new THREE.Mesh(
+    sharedGeo('md-envelope-flap', () => new THREE.ExtrudeGeometry(flapShape, { depth: 0.004, bevelEnabled: false })),
+    sharedMat('md-envelope-flap', () => new THREE.MeshStandardMaterial({ color: '#e8ddb8', roughness: 0.7 })),
+  );
+  flap.position.set(0, 0, 0.008);
+  g.add(flap);
+  const seal = new THREE.Mesh(
+    sharedGeo('md-wax-seal', () => new THREE.CylinderGeometry(0.022, 0.022, 0.008, 12)),
+    sharedMat('md-wax-seal', () => new THREE.MeshStandardMaterial({
+      color: '#c71585', roughness: 0.4, emissive: '#c71585', emissiveIntensity: 0.3,
+    })),
+  );
+  seal.rotation.x = Math.PI / 2;
+  seal.position.set(0, 0.1, 0.01);
+  g.add(seal);
+  return g;
+}
+
+// Mother's Day: folded knit blanket — V-stitch canvas texture, yarn ball
+// and knitting needles on top.
+function knitFabric() {
+  const g = new THREE.Group();
+  const tex = sharedTex('md-knit', () => {
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 192;
+    const c = cv.getContext('2d')!;
+    c.fillStyle = '#f5f5dc'; c.fillRect(0, 0, 256, 192);
+    const rows = ['#ff69b4', '#a8c8e8', '#f0d060'];
+    c.lineWidth = 4; c.lineCap = 'round';
+    for (let r = 0; r < 6; r++) {
+      c.strokeStyle = rows[r % 3]!;
+      for (let col = 0; col < 8; col++) {
+        const x = 16 + col * 32, y = 16 + r * 32;
+        c.beginPath();
+        c.moveTo(x - 10, y - 8); c.lineTo(x, y + 8); c.lineTo(x + 10, y - 8);
+        c.stroke();
+      }
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  });
+  const blanket = new THREE.Mesh(
+    sharedGeo('md-blanket', () => new THREE.BoxGeometry(0.34, 0.09, 0.26)),
+    sharedMat('md-blanket', () => new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 })),
+  );
+  blanket.position.y = 0.045;
+  g.add(blanket);
+  const yarn = new THREE.Mesh(
+    sharedGeo('md-yarn', () => new THREE.SphereGeometry(0.055, 12, 10)),
+    sharedMat('md-yarn', () => new THREE.MeshStandardMaterial({
+      color: '#ff69b4', roughness: 0.8, emissive: '#c71585', emissiveIntensity: 0.15,
+    })),
+  );
+  yarn.position.set(0.08, 0.14, 0.05);
+  g.add(yarn);
+  const needleMat = sharedMat('md-needle', () => new THREE.MeshStandardMaterial({
+    color: '#d4a24a', roughness: 0.3, metalness: 0.8,
+  }));
+  for (const [x, z, ry] of [[-0.08, 0.06, 0.5], [-0.05, 0.08, 0.35]] as const) {
+    const needle = new THREE.Mesh(
+      sharedGeo('md-needle', () => new THREE.CylinderGeometry(0.004, 0.004, 0.24, 6)),
+      needleMat,
+    );
+    needle.position.set(x, 0.11, z);
+    needle.rotation.set(Math.PI / 2 - 0.12, 0, ry);
+    g.add(needle);
+  }
+  return g;
+}
+
+// Mother's Day: pearl necklace — pearls draped along a sagging curve with
+// a gold heart pendant at the bottom.
+function pearlNecklace() {
+  const g = new THREE.Group();
+  const pearlMat = sharedMat('md-pearl', () => new THREE.MeshStandardMaterial({
+    color: '#fff8f0', roughness: 0.2, metalness: 0.15,
+    emissive: '#ffe9d0', emissiveIntensity: 0.25,
+  }));
+  const pts = [
+    new THREE.Vector3(-0.22, 0.16, 0), new THREE.Vector3(-0.18, 0.04, 0),
+    new THREE.Vector3(-0.08, -0.02, 0), new THREE.Vector3(0, -0.04, 0),
+    new THREE.Vector3(0.08, -0.02, 0), new THREE.Vector3(0.18, 0.04, 0),
+    new THREE.Vector3(0.22, 0.16, 0),
+  ];
+  const curve = new THREE.CatmullRomCurve3(pts);
+  for (let i = 0; i < 15; i++) {
+    const p = curve.getPoint(i / 14);
+    const pearl = new THREE.Mesh(
+      sharedGeo('md-pearl', () => new THREE.SphereGeometry(0.024, 10, 8)),
+      pearlMat,
+    );
+    pearl.position.copy(p);
+    g.add(pearl);
+  }
+  const pendant = new THREE.Mesh(
+    sharedGeo('md-pendant', () => new THREE.ExtrudeGeometry(heartShape(0.5), { depth: 0.01, bevelEnabled: false })),
+    sharedMat('md-pendant', () => new THREE.MeshStandardMaterial({
+      color: '#d4a24a', roughness: 0.3, metalness: 0.85,
+    })),
+  );
+  pendant.position.set(0, -0.1, 0.01);
+  g.add(pendant);
+  return g;
+}
+
 /** Build the whole 3D decoration layer for a holiday theme. Default theme gets an empty layer. */
 export function createThemeDecorations(
   theme: ThemeId,
@@ -2317,6 +2573,65 @@ export function createThemeDecorations(
       basket.scale.setScalar(1.15);
       add(basket, 'bob');
     }
+  }
+
+  if (theme === 'mothers-day') {
+    // Carnation bouquets on the base ring (scaled up so they read past the horses).
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.5;
+      const bq = carnationBouquet();
+      bq.position.set(Math.sin(a) * 1.6, 0.0, Math.cos(a) * 1.6);
+      bq.rotation.y = -a;
+      bq.scale.setScalar(1.3);
+      add(bq, 'bob');
+    }
+    // Heart teacups on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 1.6;
+      const cup = heartTeacup();
+      cup.position.set(Math.sin(a) * 1.4, 0.0, Math.cos(a) * 1.4);
+      cup.rotation.y = -a;
+      cup.scale.setScalar(1.25);
+      add(cup, 'bob');
+    }
+    // Love letters — two on the base, two floating mid-air.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 0.3;
+      const letter = loveLetter();
+      letter.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      letter.rotation.y = -a;
+      letter.scale.setScalar(1.3);
+      add(letter, 'bob');
+    }
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.4;
+      const letter = loveLetter();
+      letter.position.set(Math.sin(a) * 2.5, 2.3 + i * 0.8, Math.cos(a) * 2.5);
+      letter.rotation.y = -a;
+      letter.scale.setScalar(1.5);
+      add(letter, 'sway');
+    }
+    // Folded knit blankets on the base.
+    for (let i = 0; i < 2; i++) {
+      const a = i * Math.PI + 2.9;
+      const knit = knitFabric();
+      knit.position.set(Math.sin(a) * 1.8, 0.0, Math.cos(a) * 1.8);
+      knit.rotation.y = -a;
+      knit.scale.setScalar(1.15);
+      add(knit, 'bob');
+    }
+    // Pearl necklaces — one laid flat on the front base (pendant outward),
+    // one hanging from the rim.
+    const necklace = pearlNecklace();
+    necklace.position.set(0, 0.06, 2.0);
+    necklace.rotation.x = -Math.PI / 2;
+    necklace.scale.setScalar(1.3);
+    add(necklace, 'sway');
+    const necklaceHigh = pearlNecklace();
+    necklaceHigh.position.set(1.4, 4.2, 1.8);
+    necklaceHigh.rotation.y = -0.6;
+    necklaceHigh.scale.setScalar(1.2);
+    add(necklaceHigh, 'sway');
   }
 
   // Collect per-layer disposables: geometries / materials / textures owned
