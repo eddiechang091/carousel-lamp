@@ -438,6 +438,142 @@ function candyCane() {
   return g;
 }
 
+// Christmas: Santa — red coat cone, white beard, tilted hat with pompom.
+function santa() {
+  const g = new THREE.Group();
+  const red = sharedMat('xmas-santa-red', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.6 }));
+  const white = sharedMat('xmas-santa-white', () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }));
+  const skin = sharedMat('xmas-santa-skin', () => new THREE.MeshStandardMaterial({ color: '#f2c89b', roughness: 0.6 }));
+  const black = sharedMat('xmas-santa-black', () => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.5 }));
+  const coat = new THREE.Mesh(sharedGeo('xmas-santa-coat', () => new THREE.ConeGeometry(0.17, 0.36, 16)), red);
+  coat.position.y = 0.18; g.add(coat);
+  const hem = new THREE.Mesh(sharedGeo('xmas-santa-hem', () => new THREE.TorusGeometry(0.155, 0.02, 8, 16)), white);
+  hem.position.y = 0.03; hem.rotation.x = Math.PI / 2; g.add(hem);
+  const belt = new THREE.Mesh(sharedGeo('xmas-santa-belt', () => new THREE.CylinderGeometry(0.145, 0.155, 0.045, 16)), black);
+  belt.position.y = 0.2; g.add(belt);
+  const buckle = new THREE.Mesh(sharedGeo('xmas-santa-buckle', () => new THREE.BoxGeometry(0.05, 0.035, 0.015)),
+    sharedMat('xmas-santa-gold', () => new THREE.MeshStandardMaterial({ color: '#ffd700', roughness: 0.25, metalness: 0.7 })));
+  buckle.position.set(0, 0.2, 0.15); g.add(buckle);
+  const head = new THREE.Mesh(sharedGeo('xmas-santa-head', () => new THREE.SphereGeometry(0.095, 14, 10)), skin);
+  head.position.y = 0.44; g.add(head);
+  const beard = new THREE.Mesh(sharedGeo('xmas-santa-beard', () => new THREE.SphereGeometry(0.08, 12, 10)), white);
+  beard.position.set(0, 0.38, 0.05); beard.scale.set(1, 0.85, 0.7); g.add(beard);
+  const nose = new THREE.Mesh(sharedGeo('xmas-santa-nose', () => new THREE.SphereGeometry(0.018, 8, 6)),
+    sharedMat('xmas-santa-nose', () => new THREE.MeshStandardMaterial({ color: '#e8907a', roughness: 0.6 })));
+  nose.position.set(0, 0.43, 0.095); g.add(nose);
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(sharedGeo('xmas-santa-eye', () => new THREE.SphereGeometry(0.011, 6, 6)), black);
+    eye.position.set(side * 0.035, 0.47, 0.085); g.add(eye);
+    const arm = new THREE.Mesh(sharedGeo('xmas-santa-arm', () => new THREE.CylinderGeometry(0.03, 0.03, 0.18, 8)), red);
+    arm.position.set(side * 0.17, 0.26, 0); arm.rotation.z = side * 0.5; g.add(arm);
+    const boot = new THREE.Mesh(sharedGeo('xmas-santa-boot', () => new THREE.SphereGeometry(0.045, 8, 6)), black);
+    boot.position.set(side * 0.07, 0.025, 0.05); boot.scale.set(1, 0.6, 1.5); g.add(boot);
+  }
+  const hat = new THREE.Mesh(sharedGeo('xmas-santa-hat', () => new THREE.ConeGeometry(0.085, 0.16, 12)), red);
+  hat.position.set(0.02, 0.58, 0); hat.rotation.z = -0.35; g.add(hat);
+  const brim = new THREE.Mesh(sharedGeo('xmas-santa-brim', () => new THREE.TorusGeometry(0.085, 0.022, 8, 16)), white);
+  brim.position.y = 0.51; brim.rotation.x = Math.PI / 2; g.add(brim);
+  const pom = new THREE.Mesh(sharedGeo('xmas-santa-pom', () => new THREE.SphereGeometry(0.028, 8, 8)), white);
+  pom.position.set(0.075, 0.63, 0); g.add(pom);
+  return g;
+}
+
+// Christmas: snowman — three stacked spheres, top hat, carrot nose, scarf.
+function snowman() {
+  const g = new THREE.Group();
+  const snow = sharedMat('xmas-snowman-snow', () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.55 }));
+  const black = sharedMat('xmas-snowman-black', () => new THREE.MeshStandardMaterial({ color: '#1a1a1a', roughness: 0.5 }));
+  const bottom = new THREE.Mesh(sharedGeo('xmas-snowman-bottom', () => new THREE.SphereGeometry(0.15, 16, 12)), snow);
+  bottom.position.y = 0.15; g.add(bottom);
+  const middle = new THREE.Mesh(sharedGeo('xmas-snowman-middle', () => new THREE.SphereGeometry(0.115, 16, 12)), snow);
+  middle.position.y = 0.36; g.add(middle);
+  const head = new THREE.Mesh(sharedGeo('xmas-snowman-head', () => new THREE.SphereGeometry(0.085, 14, 10)), snow);
+  head.position.y = 0.53; g.add(head);
+  const crown = new THREE.Mesh(sharedGeo('xmas-snowman-hat', () => new THREE.CylinderGeometry(0.05, 0.05, 0.1, 12)), black);
+  crown.position.y = 0.65; g.add(crown);
+  const brim = new THREE.Mesh(sharedGeo('xmas-snowman-brim', () => new THREE.CylinderGeometry(0.085, 0.085, 0.015, 16)), black);
+  brim.position.y = 0.6; g.add(brim);
+  const nose = new THREE.Mesh(sharedGeo('xmas-snowman-nose', () => new THREE.ConeGeometry(0.018, 0.09, 8)),
+    sharedMat('xmas-snowman-carrot', () => new THREE.MeshStandardMaterial({ color: '#e86a1e', roughness: 0.6 })));
+  nose.position.set(0, 0.53, 0.11); nose.rotation.x = Math.PI / 2; g.add(nose);
+  const scarf = new THREE.Mesh(sharedGeo('xmas-snowman-scarf', () => new THREE.TorusGeometry(0.085, 0.022, 8, 16)),
+    sharedMat('xmas-snowman-scarf', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.6 })));
+  scarf.position.y = 0.44; scarf.rotation.x = Math.PI / 2; g.add(scarf);
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(sharedGeo('xmas-snowman-eye', () => new THREE.SphereGeometry(0.011, 6, 6)), black);
+    eye.position.set(side * 0.032, 0.56, 0.078); g.add(eye);
+    const arm = new THREE.Mesh(sharedGeo('xmas-snowman-arm', () => new THREE.CylinderGeometry(0.012, 0.012, 0.16, 6)),
+      sharedMat('xmas-snowman-branch', () => new THREE.MeshStandardMaterial({ color: '#5c3a1e', roughness: 0.9 })));
+    arm.position.set(side * 0.14, 0.38, 0); arm.rotation.z = side * -1.0; g.add(arm);
+  }
+  for (const by of [0.39, 0.32]) {
+    const button = new THREE.Mesh(sharedGeo('xmas-snowman-button', () => new THREE.SphereGeometry(0.012, 6, 6)), black);
+    button.position.set(0, by, 0.11); g.add(button);
+  }
+  return g;
+}
+
+// Christmas: gingerbread man — brown body, white icing eyes + buttons.
+function gingerbreadMan() {
+  const g = new THREE.Group();
+  const dough = sharedMat('xmas-ginger-dough', () => new THREE.MeshStandardMaterial({ color: '#8a5a2b', roughness: 0.7 }));
+  const icing = sharedMat('xmas-ginger-icing', () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.4, emissive: '#ffffff', emissiveIntensity: 0.15 }));
+  const body = new THREE.Mesh(sharedGeo('xmas-ginger-body', () => new THREE.SphereGeometry(0.1, 14, 10)), dough);
+  body.position.y = 0.16; body.scale.set(1, 1.15, 0.6); g.add(body);
+  const head = new THREE.Mesh(sharedGeo('xmas-ginger-head', () => new THREE.SphereGeometry(0.075, 14, 10)), dough);
+  head.position.y = 0.34; g.add(head);
+  for (const side of [-1, 1]) {
+    const arm = new THREE.Mesh(sharedGeo('xmas-ginger-arm', () => new THREE.CylinderGeometry(0.025, 0.025, 0.14, 8)), dough);
+    arm.position.set(side * 0.13, 0.2, 0); arm.rotation.z = side * -1.2; g.add(arm);
+    const leg = new THREE.Mesh(sharedGeo('xmas-ginger-leg', () => new THREE.CylinderGeometry(0.028, 0.028, 0.12, 8)), dough);
+    leg.position.set(side * 0.05, 0.05, 0); leg.rotation.z = side * 0.25; g.add(leg);
+    const eye = new THREE.Mesh(sharedGeo('xmas-ginger-eye', () => new THREE.SphereGeometry(0.01, 6, 6)), icing);
+    eye.position.set(side * 0.028, 0.36, 0.07); g.add(eye);
+  }
+  for (const by of [0.2, 0.14]) {
+    const button = new THREE.Mesh(sharedGeo('xmas-ginger-button', () => new THREE.SphereGeometry(0.012, 6, 6)), icing);
+    button.position.set(0, by, 0.06); g.add(button);
+  }
+  return g;
+}
+
+// Christmas: stocking — red leg + foot, white cuff + toe.
+function christmasStocking() {
+  const g = new THREE.Group();
+  const red = sharedMat('xmas-stocking-red', () => new THREE.MeshStandardMaterial({ color: '#c41e3a', roughness: 0.6 }));
+  const white = sharedMat('xmas-stocking-white', () => new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.8 }));
+  const leg = new THREE.Mesh(sharedGeo('xmas-stocking-leg', () => new THREE.CylinderGeometry(0.055, 0.055, 0.22, 12)), red);
+  leg.position.y = 0.15; g.add(leg);
+  const foot = new THREE.Mesh(sharedGeo('xmas-stocking-foot', () => new THREE.SphereGeometry(0.07, 12, 10)), red);
+  foot.position.set(0, 0.04, 0.05); foot.scale.set(1, 0.75, 1.5); g.add(foot);
+  const toe = new THREE.Mesh(sharedGeo('xmas-stocking-toe', () => new THREE.SphereGeometry(0.035, 8, 8)), white);
+  toe.position.set(0, 0.04, 0.14); g.add(toe);
+  const cuff = new THREE.Mesh(sharedGeo('xmas-stocking-cuff', () => new THREE.CylinderGeometry(0.068, 0.068, 0.07, 12)), white);
+  cuff.position.y = 0.29; g.add(cuff);
+  return g;
+}
+
+// Christmas: snowflake ornament — six arms + tip dots, icy emissive.
+function snowflakeOrnament() {
+  const g = new THREE.Group();
+  const ice = sharedMat('xmas-flake', () => new THREE.MeshStandardMaterial({
+    color: '#dff2ff', roughness: 0.3, metalness: 0.1, emissive: '#9fd4ff', emissiveIntensity: 0.45,
+  }));
+  const center = new THREE.Mesh(sharedGeo('xmas-flake-center', () => new THREE.SphereGeometry(0.018, 8, 8)), ice);
+  g.add(center);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const arm = new THREE.Mesh(sharedGeo('xmas-flake-arm', () => new THREE.BoxGeometry(0.085, 0.009, 0.009)), ice);
+    arm.position.set(Math.cos(a) * 0.05, Math.sin(a) * 0.05, 0);
+    arm.rotation.z = a;
+    g.add(arm);
+    const tip = new THREE.Mesh(sharedGeo('xmas-flake-tip', () => new THREE.SphereGeometry(0.011, 6, 6)), ice);
+    tip.position.set(Math.cos(a) * 0.095, Math.sin(a) * 0.095, 0);
+    g.add(tip);
+  }
+  return g;
+}
+
 // One shared radial glow texture + sprite material for all firework orbs
 // (replaces 80 per-ball PointLights — see lunarFireworkOrb). Lazily built
 // so importing this module never touches the DOM (tests, SSR).
@@ -3069,6 +3205,27 @@ export function createThemeDecorations(
       cc.rotation.y = a;
       add(cc, 'bob');
     }
+    // Santa front and center, snowmen + gingerbread men around the base.
+    const santaFigure = santa();
+    santaFigure.position.set(Math.sin(0.1) * 2.0, 0.0, Math.cos(0.1) * 2.0);
+    santaFigure.rotation.y = 0.1;
+    santaFigure.scale.setScalar(1.3);
+    add(santaFigure, 'bob');
+    for (let i = 0; i < 2; i++) {
+      const a = 2.3 + i * 2.3;
+      const s = snowman();
+      s.position.set(Math.sin(a) * 2.3, 0.0, Math.cos(a) * 2.3);
+      s.rotation.y = a;
+      s.scale.setScalar(1.1);
+      add(s, 'bob');
+    }
+    for (let i = 0; i < 3; i++) {
+      const a = 1.35 + i * 2.0;
+      const gm = gingerbreadMan();
+      gm.position.set(Math.sin(a) * 1.9, 0.0, Math.cos(a) * 1.9);
+      gm.rotation.y = a;
+      add(gm, 'bob');
+    }
     for (let i = 0; i < 8; i++) {
       const g = giftBox(i);
       const a = (i / 8) * Math.PI * 2 + 0.2;
@@ -3089,6 +3246,21 @@ export function createThemeDecorations(
       );
       b.position.set(Math.sin(a) * 2.28, 4.62, Math.cos(a) * 2.28);
       add(b, 'sway');
+    }
+    // Stockings + snowflakes hanging below / inside the bauble ring.
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + 0.65;
+      const st = christmasStocking();
+      st.position.set(Math.sin(a) * 2.28, 4.0, Math.cos(a) * 2.28);
+      st.rotation.y = a;
+      add(st, 'sway');
+    }
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.92;
+      const fl = snowflakeOrnament();
+      fl.position.set(Math.sin(a) * 2.05, 4.55, Math.cos(a) * 2.05);
+      fl.rotation.y = a;
+      add(fl, 'sway');
     }
     // Falling snow: points inside a cylinder around the carousel. Fall +
     // drift run in the vertex shader (update() only moves uniforms) — the
