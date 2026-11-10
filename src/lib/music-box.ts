@@ -37,11 +37,16 @@ export class MusicBoxAudio {
     try {
       this.ensureContext();
       const a = this.context!;
+      // Resume FIRST, before the already-playing guard: on page load the
+      // fresh context is suspended (browser autoplay policy) and that first
+      // resume() is rejected. A later start() — e.g. from the first
+      // pointer/key gesture — must get another chance to resume, so this
+      // runs even while the scheduler interval is already ticking.
+      void a.resume();
       if (this.timer !== null) return; // already playing
       this.noteIndex = 0;
       this.nextNoteTime = a.currentTime + 0.1;
       this.timer = window.setInterval(() => this.schedule(), 25);
-      void a.resume();
     } catch {
       /* Background music is a nice-to-have; ignore when audio is unavailable. */
     }
