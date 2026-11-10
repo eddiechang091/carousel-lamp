@@ -50,6 +50,7 @@ import { createAutoCaptionRunner } from '@/services/otari/auto-caption';
 import { fetchAllowedModels, readSelectedModel, saveSelectedModel } from '@/services/otari/models';
 import { readUsageEntries, type UsageEntry } from '@/services/otari/usage';
 import ModelDashboard from '@/components/ModelDashboard';
+import PonyMascot from '@/components/PonyMascot';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 
@@ -827,6 +828,11 @@ export default function Home() {
         entries={usageEntries}
         onInteract={armModelHideTimer}
         onClose={closeModelDashboard}
+      />
+      <PonyMascot
+        themeId={themeId}
+        model={selectedModel}
+        editorOpen={choosing || editor || uploadMenu || modelOpen}
       />
       <footer className="bottom">
         <div className="toolbar">
