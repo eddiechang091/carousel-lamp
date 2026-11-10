@@ -284,7 +284,9 @@
 }
 .night .caption-retry { color: #ffb4a8; }
 
-/* Model dashboard: translucent panel over the caption-editor spot. */
+/* Model dashboard: translucent panel. Centred over the caption-editor
+   spot on narrow screens; on wide screens it docks to the right of the
+   carousel so the lamp stays visible. */
 .model-dashboard {
   position: absolute; z-index: 30; bottom: 190px; left: 50%; transform: translateX(-50%);
   width: min(92vw, 420px); padding: 16px 18px; border-radius: 18px;
@@ -296,6 +298,13 @@
   opacity: 0; pointer-events: none; transition: opacity 300ms ease;
 }
 .model-dashboard.open { opacity: 1; pointer-events: auto; }
+@media (min-width: 1280px) {
+  .model-dashboard {
+    left: auto; right: 16px; top: 50%; bottom: auto;
+    transform: translateY(-50%);
+    width: min(300px, calc(50vw - 32px));
+  }
+}
 .night .model-dashboard {
   background: rgba(28, 30, 46, 0.72); color: #f0e8d8;
   border-color: rgba(255, 255, 255, 0.14);

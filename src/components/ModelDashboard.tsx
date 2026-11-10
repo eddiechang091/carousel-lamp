@@ -3,11 +3,13 @@ import { useI18n } from "@/i18n";
 import type { UsageEntry } from "@/services/otari/usage";
 import UsageChart from "./UsageChart";
 
-// Model dashboard: a translucent overlay in the same spot as the
-// caption editor popup. Model picker (list from the server, never
-// hardcoded) + token-usage line chart. Fade is CSS opacity on the
-// wrapper (.model-dashboard / .open); the 10s auto-hide timer lives
-// in Home and resets on any pointer/key interaction inside (onInteract).
+// Model dashboard: a translucent panel with a model picker (list from
+// the server, never hardcoded) + token-usage line chart. Position is
+// CSS (.model-dashboard): centred over the caption editor on narrow
+// screens, docked to the right of the carousel on wide screens.
+// Fade is CSS opacity on the wrapper (.model-dashboard / .open); the
+// 10s auto-hide timer lives in Home and resets on any pointer/key
+// interaction inside (onInteract).
 type Props = {
   open: boolean;
   models: string[];
