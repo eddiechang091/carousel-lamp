@@ -14,6 +14,8 @@ export type AutoCaptionRequest = {
   hasCaption?: boolean;
   /** Retry even if this slot was already attempted. */
   force?: boolean;
+  /** One model from the server allowlist; omit for the server default. */
+  model?: string;
 };
 
 export type AutoCaptionDeps = {
@@ -21,6 +23,7 @@ export type AutoCaptionDeps = {
     imageDataUrl: string;
     locale: Locale;
     themeId: ThemeId;
+    model?: string;
   }) => Promise<string>;
   onStart?: (slot: number) => void;
   onCaption?: (slot: number, text: string) => void;
@@ -42,6 +45,7 @@ export function createAutoCaptionRunner(deps: AutoCaptionDeps) {
         imageDataUrl: req.imageDataUrl,
         locale: req.locale,
         themeId: req.themeId,
+        model: req.model,
       });
       deps.onCaption?.(slot, text);
     } catch (error) {

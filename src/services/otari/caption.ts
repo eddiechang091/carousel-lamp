@@ -18,15 +18,26 @@ const LANGUAGE_NAMES: Record<Locale, string> = {
   zh: "Chinese",
 };
 
-// Theme display names for the AI caption prompt. Only the classic four
-// are named; any other theme falls back to "Classic" (see ?? below).
-// NOTE: kept Partial on purpose — the full 15-theme registry lives in
-// themes.ts and this file must not grow a second copy of it.
-const THEME_NAMES: Partial<Record<ThemeId, string>> = {
+// Theme display names for the AI caption prompt — the English labels
+// from the theme picker (i18n `theme.*`), one per theme in the
+// registry. Any theme without a mapping falls back to "Classic"
+// (see ?? below); the registry in themes.ts is the authority.
+const THEME_NAMES: Record<ThemeId, string> = {
   default: "Classic",
+  "new-year": "New Year's Day",
+  valentine: "Valentine's Day",
+  "spring-festival": "Spring Festival",
+  carnival: "Carnival",
+  "st-patrick": "St. Patrick's Day",
+  "april-fools": "April Fools' Day",
+  easter: "Easter",
+  "mothers-day": "Mother's Day",
+  "dragon-boat": "Dragon Boat Festival",
+  "mid-autumn": "Mid-Autumn Festival",
   halloween: "Halloween",
+  diwali: "Diwali",
+  thanksgiving: "Thanksgiving",
   christmas: "Christmas",
-  'spring-festival': "Spring Festival",
 };
 
 export function buildCaptionMessages(opts: {
@@ -61,6 +72,8 @@ export async function generateAiCaption(opts: {
   imageDataUrl: string;
   locale: Locale;
   themeId: ThemeId;
+  /** One model from the server allowlist; omit for the server default. */
+  model?: string;
 }): Promise<string> {
   const llm = await getLlmService();
   if (!llm.available) {
@@ -70,6 +83,7 @@ export async function generateAiCaption(opts: {
     messages: buildCaptionMessages(opts),
     maxTokens: 60,
     temperature: 0.9,
+    model: opts.model,
   });
   const caption = cleanCaption(result.text);
   if (!caption) {
