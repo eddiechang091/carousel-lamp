@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, setLocale } from "@/i18n";
 import { AppWrapper } from "@/components/common/PageMeta";
@@ -79,31 +79,38 @@ async function selectFirstFrame() {
   render(<Home />, { wrapper: Wrapper });
   await waitFor(() => expect(selectHooks.onSelect).not.toBeNull());
   selectHooks.onSelect!(0);
-  await screen.findByLabelText("Mood caption");
+  // The empty frame shows only the Add photo button now (the footer
+  // toolbar has its own Add photo button, so scope to the popup).
+  const actions = await waitFor(() => {
+    const el = document.querySelector(".photo-actions");
+    if (!el) throw new Error("photo-actions not rendered");
+    return el as HTMLElement;
+  });
+  return within(actions);
 }
 
-describe("ai caption button", () => {
+describe("caption editor on an empty frame", () => {
   beforeEach(() => {
     setLocale("en");
     selectHooks.complete.mockReset();
   });
 
-  it("is always shown now that the host gate is gone", async () => {
-    await selectFirstFrame();
-    const button = screen.getByRole("button", {
-      name: "Generate a poetic caption with AI",
-    });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeEnabled();
+  it("shows only the Add photo button — no caption input, Export or Remove", async () => {
+    const actions = await selectFirstFrame();
+    expect(actions.getByRole("button", { name: "Add photo" })).toBeInTheDocument();
+    expect(actions.queryByLabelText("Mood caption")).not.toBeInTheDocument();
+    expect(actions.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
+    expect(actions.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument();
+    expect(
+      actions.queryByRole("button", { name: "Generate a poetic caption with AI" }),
+    ).not.toBeInTheDocument();
+    expect(selectHooks.complete).not.toHaveBeenCalled();
   });
 
-  it("shows the empty-frame notice and never calls the LLM on an empty frame", async () => {
-    await selectFirstFrame();
+  it("opens the photo editor when Add photo is tapped", async () => {
+    const actions = await selectFirstFrame();
     const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: "Generate a poetic caption with AI" }),
-    );
-    await screen.findByText("This frame is empty — add a photo or a caption first");
-    expect(selectHooks.complete).not.toHaveBeenCalled();
+    await user.click(actions.getByRole("button", { name: "Add photo" }));
+    await screen.findByText("Hang at position 01");
   });
 });

@@ -99,6 +99,7 @@ const en: Entry = {
   'ai.captionGenerating': 'Dreaming up a line…',
   'ai.captionReady': 'AI caption ready — edit it, then save',
   'ai.captionFailed': "Couldn't dream up a caption — try again",
+  'ai.captionRetry': 'Try again',
   'ai.captionUnavailable': 'AI captions are unavailable right now — check the Otari setup and try again',
   'theme.auto': 'Auto',
   'theme.default': 'Classic',
@@ -270,6 +271,7 @@ const fr: Entry = {
   'ai.captionGenerating': 'Une phrase poétique est en cours…',
   'ai.captionReady': 'Légende IA prête — modifiez-la puis enregistrez',
   'ai.captionFailed': 'Impossible de créer une légende — réessayez',
+  'ai.captionRetry': 'Réessayer',
   'ai.captionUnavailable':
     'Les légendes IA sont indisponibles pour le moment — vérifiez la configuration Otari puis réessayez',
   'theme.auto': 'Auto',
@@ -439,6 +441,7 @@ const es: Entry = {
   'ai.captionGenerating': 'Soñando una frase…',
   'ai.captionReady': 'Frase lista — edítala y luego guarda',
   'ai.captionFailed': 'No se pudo crear la frase — inténtalo de nuevo',
+  'ai.captionRetry': 'Reintentar',
   'ai.captionUnavailable':
     'Las frases IA no están disponibles ahora mismo — revisa la configuración de Otari e inténtalo de nuevo',
   'theme.auto': 'Auto',
@@ -588,6 +591,7 @@ const zh: Entry = {
   'ai.captionGenerating': '正在想一句…',
   'ai.captionReady': 'AI 短句已生成，改好后点保存',
   'ai.captionFailed': '没能生成短句，再试一次',
+  'ai.captionRetry': '重试',
   'ai.captionUnavailable': 'AI 短句暂时不可用，请检查 Otari 配置后再试',
   'theme.auto': '自动',
   'theme.default': '经典游园',

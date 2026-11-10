@@ -259,6 +259,12 @@
 }
 .caption-editor input::placeholder { color: #a89f8d; }
 .caption-count { font-size: 11px; color: #9a927f; white-space: nowrap; }
+.caption-retry {
+  align-self: flex-start; background: none; border: 0; cursor: pointer;
+  color: #a2443c; font-size: 12px; line-height: 1.4; padding: 2px 6px;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.night .caption-retry { color: #ffb4a8; }
 .caption-save, .caption-clear { flex: none; width: 40px; padding: 0; }
 .photo-action-row { display: flex; gap: 8px; }
 .photo-action-row button { flex: 1; white-space: nowrap; }
