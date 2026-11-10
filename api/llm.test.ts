@@ -16,10 +16,22 @@ function mockRes() {
   return res;
 }
 
-const okChoice = (text: string) => ({
+const okChoice = (
+  text: string,
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number } | null = {
+    prompt_tokens: 10,
+    completion_tokens: 5,
+    total_tokens: 15,
+  },
+  model = "acme/vision-1",
+) => ({
   ok: true,
   status: 200,
-  json: async () => ({ choices: [{ message: { content: text } }] }),
+  json: async () => ({
+    choices: [{ message: { content: text } }],
+    usage,
+    model,
+  }),
 });
 
 const failWith = (status: number) => ({
@@ -37,6 +49,7 @@ describe("api/llm proxy", () => {
     vi.stubEnv("OTARI_API_KEY", "test-key-otk");
     vi.stubEnv("OTARI_MODEL", "acme/vision-1");
     vi.stubEnv("OTARI_FALLBACK_MODEL", "");
+    vi.stubEnv("OTARI_MODELS", "");
     vi.stubEnv("OTARI_BASE_URL", "");
   });
 
@@ -55,10 +68,32 @@ describe("api/llm proxy", () => {
     },
   ];
 
-  it("rejects non-POST methods", async () => {
+  it("rejects non-GET/POST methods", async () => {
+    const res = mockRes();
+    await handler({ method: "DELETE" }, res);
+    expect(res.statusCode).toBe(405);
+  });
+
+  it("GET returns the allowed models from OTARI_MODELS", async () => {
+    vi.stubEnv("OTARI_MODELS", "acme/vision-1, other/vision-2 , acme/vision-1");
     const res = mockRes();
     await handler({ method: "GET" }, res);
-    expect(res.statusCode).toBe(405);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({ models: ["acme/vision-1", "other/vision-2"] });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("GET falls back to OTARI_MODEL + OTARI_FALLBACK_MODEL, and to [] when unset", async () => {
+    vi.stubEnv("OTARI_FALLBACK_MODEL", "other/vision-2");
+    const res = mockRes();
+    await handler({ method: "GET" }, res);
+    expect(res.payload).toEqual({ models: ["acme/vision-1", "other/vision-2"] });
+
+    vi.stubEnv("OTARI_MODEL", "");
+    vi.stubEnv("OTARI_FALLBACK_MODEL", "");
+    const resEmpty = mockRes();
+    await handler({ method: "GET" }, resEmpty);
+    expect(resEmpty.payload).toEqual({ models: [] });
   });
 
   it("rejects a missing messages array", async () => {
@@ -95,7 +130,11 @@ describe("api/llm proxy", () => {
       res,
     );
     expect(res.statusCode).toBe(200);
-    expect(res.payload).toEqual({ text: "Golden hour glow" });
+    expect(res.payload).toEqual({
+      text: "Golden hour glow",
+      model: "acme/vision-1",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://api.otari.ai/api/v1/chat/completions");
@@ -118,11 +157,15 @@ describe("api/llm proxy", () => {
     vi.stubEnv("OTARI_FALLBACK_MODEL", "other/vision-2");
     fetchMock
       .mockResolvedValueOnce(failWith(500))
-      .mockResolvedValueOnce(okChoice("Moonlit spin"));
+      .mockResolvedValueOnce(okChoice("Moonlit spin", undefined, "other/vision-2"));
     const res = mockRes();
     await handler({ method: "POST", body: { messages } }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.payload).toEqual({ text: "Moonlit spin" });
+    expect(res.payload).toEqual({
+      text: "Moonlit spin",
+      model: "other/vision-2",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const first = JSON.parse(fetchMock.mock.calls[0][1].body as string) as { model: string };
     const second = JSON.parse(fetchMock.mock.calls[1][1].body as string) as { model: string };
@@ -150,6 +193,39 @@ describe("api/llm proxy", () => {
     await handler({ method: "POST", body: { messages } }, res421);
     expect(res421.statusCode).toBe(502);
     expect(JSON.stringify(res421.payload)).toContain("OTARI_BASE_URL");
+  });
+
+  it("rejects a model outside the allowlist with 400 and never calls Otari", async () => {
+    const res = mockRes();
+    await handler(
+      { method: "POST", body: { messages, model: "evil/not-listed" } },
+      res,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(JSON.stringify(res.payload)).toContain("Unknown model");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("uses an explicitly picked allowed model and does not retry the fallback", async () => {
+    vi.stubEnv("OTARI_FALLBACK_MODEL", "other/vision-2");
+    fetchMock.mockResolvedValue(failWith(500));
+    const res = mockRes();
+    await handler(
+      { method: "POST", body: { messages, model: "other/vision-2" } },
+      res,
+    );
+    expect(res.statusCode).toBe(502);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as { model: string };
+    expect(body.model).toBe("other/vision-2");
+  });
+
+  it("returns usage null when the upstream response carries none", async () => {
+    fetchMock.mockResolvedValue(okChoice("hi", null));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({ text: "hi", model: "acme/vision-1", usage: null });
   });
 
   it("honors OTARI_BASE_URL (EU endpoint)", async () => {
