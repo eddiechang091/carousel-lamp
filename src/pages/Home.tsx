@@ -581,8 +581,7 @@ export default function Home() {
         <LanguageSwitcher />
       </div>
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
-        <img src="/carousel-icon.png" alt="" width={400} height={400} draggable={false} />
-        <span className="logo-text" aria-hidden="true">Carousel Lamp</span>
+        <img src="/carousel-lamp-title-clean.png" alt="" width={900} height={780} draggable={false} />
         <span className="title-sparkles" aria-hidden="true">
           <i /><i /><i /><i /><i /><i /><i /><i />
         </span>

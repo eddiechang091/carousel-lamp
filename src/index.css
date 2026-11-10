@@ -100,22 +100,13 @@
 
 .ribbon-title {
   position: absolute; z-index: 2; left: clamp(20px, 3.5vw, 64px); top: 30px;
-  margin: 0; line-height: 1;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  width: clamp(230px, 30vw, 440px); margin: 0; line-height: 0;
   pointer-events: none; transition: opacity .35s;
   background: none !important; box-shadow: none; border: 0;
 }
 .ribbon-title img {
-  width: clamp(132px, 15vw, 196px); height: auto; display: block;
-  border-radius: 22%; box-shadow: 0 6px 24px #7a4a2e22;
-  filter: none; transition: filter 1.2s;
+  width: 100%; height: auto; display: block; filter: none; transition: filter 1.2s;
 }
-.logo-text {
-  font-family: 'Caveat', cursive; font-weight: 600;
-  font-size: clamp(34px, 4.4vw, 56px); line-height: 1;
-  color: #8a4b3c; padding-left: 6px; white-space: nowrap;
-}
-.night .logo-text { color: #fbeedd; text-shadow: 0 0 14px #f1baca99; }
 .night .ribbon-title img {
   filter: brightness(1.3) drop-shadow(0 0 3px #ffe5dacc) drop-shadow(0 0 10px #f1baca80) drop-shadow(0 0 16px #e5afd62b);
 }
@@ -388,7 +379,7 @@
 }
 @media (max-width: 700px) {
   .workshop { min-height: 600px; }
-  .ribbon-title { top: 12px; left: 18px; }
+  .ribbon-title { top: 12px; left: 18px; width: clamp(175px, 36vw, 235px); }
   .scene, .focused .scene { top: 150px; bottom: 160px; }
   .bottom { padding: 10px 9px max(16px, env(safe-area-inset-bottom)); gap: 13px; }
   .toolbar { display: flex; width: auto; gap: 2px; padding: 6px; }
