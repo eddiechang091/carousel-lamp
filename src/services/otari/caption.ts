@@ -40,6 +40,10 @@ const THEME_NAMES: Record<ThemeId, string> = {
   christmas: "Christmas",
 };
 
+export function themeDisplayName(themeId: ThemeId): string {
+  return THEME_NAMES[themeId] ?? "Classic";
+}
+
 export function buildCaptionMessages(opts: {
   imageDataUrl: string;
   locale: Locale;
