@@ -1,4 +1,5 @@
-// Vercel serverless proxy: POST /api/llm -> Otari chat completions.
+// Vercel serverless proxy: POST /api/llm -> Otari chat completions,
+// GET /api/llm -> the allowed model list for the dashboard picker.
 //
 // The Otari API key lives only in the server environment
 // (OTARI_API_KEY). It is never sent to the browser, never logged, and
@@ -6,8 +7,17 @@
 // OTARI_MODEL, with OTARI_FALLBACK_MODEL retried once on failure
 // (multi-provider routing). No model ID is hardcoded anywhere.
 //
+// Allowed models: OTARI_MODELS (comma-separated provider/model list)
+// when set, else [OTARI_MODEL, OTARI_FALLBACK_MODEL]. The POST body
+// may name one of them as `model`; anything else is rejected with 400.
+// Add models later by editing the Vercel env var — no code change.
+//
 // Base URL defaults to the US endpoint and can be overridden for EU
 // accounts (OTARI_BASE_URL=https://eu.api.otari.ai/api/v1).
+//
+// A successful POST returns { text, model, usage } where usage is the
+// Otari token usage ({ prompt_tokens, completion_tokens, total_tokens })
+// or null when the upstream response carries none.
 
 const DEFAULT_BASE_URL = "https://api.otari.ai/api/v1";
 const ATTEMPT_TIMEOUT_MS = 12000;
@@ -47,6 +57,21 @@ type HandlerRes = {
 
 function jsonError(res: HandlerRes, status: number, message: string): void {
   res.status(status).json({ error: message });
+}
+
+type TokenUsage = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+};
+
+function getAllowedModels(): string[] {
+  const fromEnv = (process.env.OTARI_MODELS || "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter(Boolean);
+  if (fromEnv.length > 0) return [...new Set(fromEnv)];
+  return [process.env.OTARI_MODEL || "", process.env.OTARI_FALLBACK_MODEL || ""].filter(Boolean);
 }
 
 function readBody(req: HandlerReq): unknown {
@@ -114,6 +139,33 @@ function extractText(data: unknown): string {
   return "";
 }
 
+function extractUsage(data: unknown): TokenUsage | null {
+  if (!data || typeof data !== "object") return null;
+  const usage = (data as Record<string, unknown>).usage;
+  if (!usage || typeof usage !== "object") return null;
+  const u = usage as Record<string, unknown>;
+  if (
+    typeof u.prompt_tokens !== "number" ||
+    typeof u.completion_tokens !== "number" ||
+    typeof u.total_tokens !== "number"
+  ) {
+    return null;
+  }
+  return {
+    prompt_tokens: u.prompt_tokens,
+    completion_tokens: u.completion_tokens,
+    total_tokens: u.total_tokens,
+  };
+}
+
+function extractModel(data: unknown, fallback: string): string {
+  if (data && typeof data === "object") {
+    const model = (data as Record<string, unknown>).model;
+    if (typeof model === "string" && model) return model;
+  }
+  return fallback;
+}
+
 function upstreamErrorMessage(status: number): string {
   if (status === 401) return "Otari rejected the API key — check OTARI_API_KEY in the Vercel dashboard.";
   if (status === 421)
@@ -129,7 +181,13 @@ async function callOtari(
   messages: OutgoingMessage[],
   maxTokens: number,
   temperature: number,
-): Promise<{ ok: boolean; status: number; text: string }> {
+): Promise<{
+  ok: boolean;
+  status: number;
+  text: string;
+  usage: TokenUsage | null;
+  model: string;
+}> {
   let response: Response;
   try {
     response = await fetch(`${baseUrl}/chat/completions`, {
@@ -147,7 +205,7 @@ async function callOtari(
       signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
     });
   } catch {
-    return { ok: false, status: 0, text: "" };
+    return { ok: false, status: 0, text: "", usage: null, model };
   }
   let data: unknown = null;
   try {
@@ -155,13 +213,23 @@ async function callOtari(
   } catch {
     data = null;
   }
-  if (!response.ok) return { ok: false, status: response.status, text: "" };
-  return { ok: true, status: response.status, text: extractText(data) };
+  if (!response.ok) return { ok: false, status: response.status, text: "", usage: null, model };
+  return {
+    ok: true,
+    status: response.status,
+    text: extractText(data),
+    usage: extractUsage(data),
+    model: extractModel(data, model),
+  };
 }
 
 export default async function handler(req: HandlerReq, res: HandlerRes): Promise<void> {
+  if (req.method === "GET") {
+    res.status(200).json({ models: getAllowedModels() });
+    return;
+  }
   if (req.method !== "POST") {
-    jsonError(res, 405, "Method not allowed — POST { messages } to /api/llm.");
+    jsonError(res, 405, "Method not allowed — GET /api/llm lists models, POST { messages } calls one.");
     return;
   }
   const body = readBody(req);
@@ -198,7 +266,14 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
     );
     return;
   }
-  const model = process.env.OTARI_MODEL;
+  const allowedModels = getAllowedModels();
+  const requestedModel =
+    typeof record.model === "string" && record.model ? record.model : undefined;
+  if (requestedModel && !allowedModels.includes(requestedModel)) {
+    jsonError(res, 400, "Unknown model — pick one from the list returned by GET /api/llm.");
+    return;
+  }
+  const model = requestedModel ?? process.env.OTARI_MODEL;
   if (!model) {
     jsonError(
       res,
@@ -207,23 +282,25 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
     );
     return;
   }
-  const fallbackModel = process.env.OTARI_FALLBACK_MODEL || "";
+  // An explicitly picked model is tried on its own; the fallback retry
+  // only applies to the default (OTARI_MODEL) path.
+  const fallbackModel = requestedModel ? "" : process.env.OTARI_FALLBACK_MODEL || "";
   const baseUrl = (process.env.OTARI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 
   // Log only the outcome and the model used — never the key, never the
   // request body (it carries image data URLs).
   const primary = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature);
   if (primary.ok) {
-    console.log(`[api/llm] ok model=${model}`);
-    res.status(200).json({ text: primary.text });
+    console.log(`[api/llm] ok model=${primary.model} tokens=${primary.usage?.total_tokens ?? "?"}`);
+    res.status(200).json({ text: primary.text, model: primary.model, usage: primary.usage });
     return;
   }
   if (fallbackModel && fallbackModel !== model) {
     console.log(`[api/llm] primary failed status=${primary.status} model=${model}, retrying fallback model=${fallbackModel}`);
     const fallback = await callOtari(baseUrl, apiKey, fallbackModel, messages, maxTokens, temperature);
     if (fallback.ok) {
-      console.log(`[api/llm] ok model=${fallbackModel} (fallback)`);
-      res.status(200).json({ text: fallback.text });
+      console.log(`[api/llm] ok model=${fallback.model} tokens=${fallback.usage?.total_tokens ?? "?"} (fallback)`);
+      res.status(200).json({ text: fallback.text, model: fallback.model, usage: fallback.usage });
       return;
     }
     console.log(`[api/llm] fallback failed status=${fallback.status} model=${fallbackModel}`);

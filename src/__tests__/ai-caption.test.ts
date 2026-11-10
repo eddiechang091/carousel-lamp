@@ -42,6 +42,36 @@ describe("ai caption", () => {
     expect(blocks[1]).toEqual({ type: "image", data: dataUrl });
   });
 
+  it("names every festival theme in the prompt, not just the classic four", () => {
+    const expected: Record<string, string> = {
+      default: "Classic",
+      "new-year": "New Year's Day",
+      valentine: "Valentine's Day",
+      "spring-festival": "Spring Festival",
+      carnival: "Carnival",
+      "st-patrick": "St. Patrick's Day",
+      "april-fools": "April Fools' Day",
+      easter: "Easter",
+      "mothers-day": "Mother's Day",
+      "dragon-boat": "Dragon Boat Festival",
+      "mid-autumn": "Mid-Autumn Festival",
+      halloween: "Halloween",
+      diwali: "Diwali",
+      thanksgiving: "Thanksgiving",
+      christmas: "Christmas",
+    };
+    for (const [themeId, name] of Object.entries(expected)) {
+      const messages = buildCaptionMessages({
+        imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
+        locale: "en",
+        themeId: themeId as Parameters<typeof buildCaptionMessages>[0]["themeId"],
+      });
+      const user = messages[1];
+      const blocks = user.content as Array<{ type: string; text?: string }>;
+      expect(String(blocks[0].text)).toContain(name);
+    }
+  });
+
   describe("otari proxy client", () => {
     const fetchMock = vi.fn();
 
@@ -73,6 +103,25 @@ describe("ai caption", () => {
       const body = JSON.parse(init.body as string) as { messages: unknown[] };
       expect(body.messages).toHaveLength(2);
       expect(JSON.stringify(body)).not.toContain("OTARI_API_KEY");
+    });
+
+    it("sends a picked model to the proxy when one is given", async () => {
+      fetchMock.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ text: "Glow" }),
+      });
+      const caption = await generateAiCaption({
+        imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
+        locale: "en",
+        themeId: "default",
+        model: "other/vision-2",
+      });
+      expect(caption).toBe("Glow");
+      const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+        model?: string;
+      };
+      expect(body.model).toBe("other/vision-2");
     });
 
     it("throws LlmUnavailableError with the proxy message on a 503", async () => {

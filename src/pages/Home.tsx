@@ -10,8 +10,8 @@ import {
   RotateCcw,
   CirclePlay,
   Pause,
-  Sparkles,
   ImagePlus,
+  Cpu,
   Crop as CropIcon,
   Trash2,
   X,
@@ -46,6 +46,11 @@ import { THEMES, normalizeThemeMode, resolveTheme, type ThemeId, type ThemeMode 
 import { useI18n } from '@/i18n';
 import { LlmUnavailableError } from '@/services/otari/llm';
 import { generateAiCaption } from '@/services/otari/caption';
+import { createAutoCaptionRunner } from '@/services/otari/auto-caption';
+import { fetchAllowedModels, readSelectedModel, saveSelectedModel } from '@/services/otari/models';
+import { readUsageEntries, type UsageEntry } from '@/services/otari/usage';
+import ModelDashboard from '@/components/ModelDashboard';
+import PonyMascot from '@/components/PonyMascot';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 
@@ -106,11 +111,9 @@ export default function Home() {
   );
   const [captionDraft, setCaptionDraft] = useState('');
   const [captionBusy, setCaptionBusy] = useState(false);
+  const [captionFailed, setCaptionFailed] = useState(false);
   const memoriesRef = useRef(memories);
   useEffect(() => { memoriesRef.current = memories; }, [memories]);
-  useEffect(() => {
-    if (selected >= 0) setCaptionDraft(memoriesRef.current[selected]?.caption ?? '');
-  }, [selected]);
   const play = (kind: Parameters<ChimeAudio['play']>[0]) =>
     audio.current?.play(kind);
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => normalizeThemeMode(readThemePref()));
@@ -133,6 +136,133 @@ export default function Home() {
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeMode]);
+
+  // Model dashboard: the picker list comes from the server (GET
+  // /api/llm); the user's pick is stored locally and sent with later
+  // calls. The overlay fades out by itself after 10s idle; any
+  // pointer/key interaction inside resets the timer.
+  const [modelOpen, setModelOpen] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(() => readSelectedModel());
+  const selectedModelRef = useRef(selectedModel);
+  useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
+  const [usageEntries, setUsageEntries] = useState<UsageEntry[]>(() => readUsageEntries());
+  const modelHideTimer = useRef<number | null>(null);
+  function stopModelHideTimer() {
+    if (modelHideTimer.current !== null) {
+      window.clearTimeout(modelHideTimer.current);
+      modelHideTimer.current = null;
+    }
+  }
+  function armModelHideTimer() {
+    stopModelHideTimer();
+    modelHideTimer.current = window.setTimeout(() => setModelOpen(false), 10000);
+  }
+  useEffect(() => () => stopModelHideTimer(), []);
+  async function toggleModelDashboard() {
+    if (modelOpen) {
+      stopModelHideTimer();
+      setModelOpen(false);
+      return;
+    }
+    setUsageEntries(readUsageEntries());
+    setModelOpen(true);
+    armModelHideTimer();
+    if (models.length === 0 && !modelsLoading) {
+      setModelsLoading(true);
+      setModelsError(false);
+      try {
+        setModels(await fetchAllowedModels());
+      } catch {
+        setModelsError(true);
+      } finally {
+        setModelsLoading(false);
+      }
+    }
+  }
+  function closeModelDashboard() {
+    stopModelHideTimer();
+    setModelOpen(false);
+  }
+  function pickModel(model: string | null) {
+    saveSelectedModel(model);
+    setSelectedModel(model);
+  }
+
+  // Auto-caption: when a photo is hung, the model drafts one poetic line
+  // into the caption input. Refs keep the async callbacks current.
+  const selectedRef = useRef(selected);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  const localeRef = useRef(locale);
+  useEffect(() => { localeRef.current = locale; }, [locale]);
+  const themeIdRef = useRef(themeId);
+  useEffect(() => { themeIdRef.current = themeId; }, [themeId]);
+  // Auto-generated captions, keyed by slot, until the user saves them.
+  // The draft itself is never persisted except through the Save button.
+  const autoCaptionTextRef = useRef(new Map<number, string>());
+  const generatingSlotRef = useRef<number | null>(null);
+  const autoCaption = useRef(createAutoCaptionRunner({
+    generate: generateAiCaption,
+    onStart: (slot) => {
+      if (slot === selectedRef.current) {
+        generatingSlotRef.current = slot;
+        setCaptionBusy(true);
+        setCaptionFailed(false);
+      }
+    },
+    onCaption: (slot, text) => {
+      autoCaptionTextRef.current.set(slot, text);
+      setUsageEntries(readUsageEntries());
+      if (slot === selectedRef.current) {
+        setCaptionDraft(text);
+        setNotice(t('ai.captionReady'));
+        play('select');
+      }
+    },
+    onError: (slot, err) => {
+      if (slot === selectedRef.current) {
+        setCaptionFailed(true);
+        setNotice(
+          err instanceof LlmUnavailableError
+            ? err.message || t('ai.captionUnavailable')
+            : t('ai.captionFailed'),
+        );
+      }
+    },
+    onDone: (slot) => {
+      if (generatingSlotRef.current === slot) {
+        generatingSlotRef.current = null;
+        setCaptionBusy(false);
+      }
+    },
+  }));
+  // Ask the model for a caption for one freshly uploaded photo.
+  function requestAutoCaption(slot: number, preview: string, hasCaption: boolean, force = false) {
+    void autoCaption.current.request(slot, {
+      imageDataUrl: preview,
+      locale: localeRef.current,
+      themeId: themeIdRef.current,
+      hasCaption,
+      force,
+      model: selectedModelRef.current ?? undefined,
+    });
+  }
+  function retryAutoCaption() {
+    if (selectedRef.current < 0) return;
+    const memory = memoriesRef.current[selectedRef.current];
+    if (!memory || memory.empty || !memory.preview) return;
+    requestAutoCaption(selectedRef.current, memory.preview, false, true);
+  }
+  useEffect(() => {
+    if (selected >= 0) {
+      // A saved caption wins; otherwise show the auto-generated draft.
+      const saved = memoriesRef.current[selected]?.caption ?? '';
+      setCaptionDraft(saved || (autoCaptionTextRef.current.get(selected) ?? ''));
+      setCaptionFailed(false);
+    }
+  }, [selected]);
 
   function toggleMusic() {
     const next = !musicOn;
@@ -382,6 +512,9 @@ export default function Home() {
       for (const {slot, memory} of prepared) {
         await api.current?.setPhoto(slot, memory.preview);
         if (memory.caption) await api.current?.setCaption(slot, memory.caption);
+        // Draft a caption for each freshly hung photo (unless it already
+        // has one); the draft is saved only via the Save button.
+        requestAutoCaption(slot, memory.preview, (memory.caption ?? '').trim() !== '');
       }
       api.current?.reset();
       setUploadMenu(false);
@@ -425,6 +558,9 @@ export default function Home() {
             : m,
         ),
       );
+      // A freshly hung photo gets its caption drafted by the model.
+      // The draft is editable; it is saved only when the user presses Save.
+      requestAutoCaption(selected, cropped, memories[selected].caption.trim() !== '');
       play('hang');
       setNotice(t('notice.photoAttached', { number: String(selected + 1).padStart(2, '0') }));
       closeEditor();
@@ -488,37 +624,6 @@ export default function Home() {
     play('hang');
     setNotice(t('notice.photoRemoved'));
   }
-  // AI caption: the model looks at the photo and drafts one poetic line
-  // (<= 20 chars, current language) into the caption input. The user
-  // edits it and saves with the existing Save button — nothing is
-  // auto-persisted here.
-  async function generateCaption() {
-    if (selected < 0 || captionBusy) return;
-    const memory = memoriesRef.current[selected];
-    if (!memory || memory.empty || !memory.preview) {
-      setNotice(t('error.emptyFrame'));
-      return;
-    }
-    setCaptionBusy(true);
-    try {
-      const text = await generateAiCaption({
-        imageDataUrl: memory.preview,
-        locale,
-        themeId,
-      });
-      setCaptionDraft(text);
-      setNotice(t('ai.captionReady'));
-      play('select');
-    } catch (err) {
-      if (err instanceof LlmUnavailableError) {
-        setNotice(err.message || t('ai.captionUnavailable'));
-      } else {
-        setNotice(t('ai.captionFailed'));
-      }
-    } finally {
-      setCaptionBusy(false);
-    }
-  }
   async function persistCaption(next: string) {
     if (selected < 0 || !api.current || pendingSave.current) return;
     const text = next.trim().slice(0, 40);
@@ -578,6 +683,16 @@ export default function Home() {
     >
       <div className="controls-row">
         <ThemeSwitcher value={themeMode} onChange={setThemeMode} />
+        <button
+          type="button"
+          className="model-toggle"
+          aria-label={t('a11y.modelButton')}
+          aria-expanded={modelOpen}
+          onClick={() => void toggleModelDashboard()}
+        >
+          <Cpu className="theme-icon" aria-hidden="true" />
+          {t('model.title')}
+        </button>
         <LanguageSwitcher />
       </div>
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
@@ -629,70 +744,96 @@ export default function Home() {
       )}
       {selected >= 0 && !choosing && (
         <div className="photo-actions">
-          <div className="caption-editor">
-            <input
-              type="text"
-              value={captionDraft}
-              maxLength={40}
-              placeholder={t('label.captionPlaceholder')}
-              aria-label={t('a11y.captionInput')}
-              onChange={(e) => setCaptionDraft(e.target.value.slice(0, 40))}
-            />
-            <span className="caption-count">{captionDraft.length}/40</span>
-            <Button
-              size="sm"
-              className="caption-save"
-              aria-label={t('a11y.saveCaption')}
-              disabled={captionDraft.trim() === memories[selected].caption}
-              onClick={() => void persistCaption(captionDraft)}
-            >
-              <Check />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="caption-clear"
-              aria-label={t('a11y.clearCaption')}
-              disabled={!memories[selected].caption}
-              onClick={() => void persistCaption('')}
-            >
-              <X />
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="caption-ai"
-              aria-label={t('a11y.aiCaption')}
-              disabled={captionBusy}
-              onClick={() => void generateCaption()}
-            >
-              <Sparkles />
-              {captionBusy ? t('ai.captionGenerating') : t('action.aiCaption')}
-            </Button>
-          </div>
-          <div className="photo-action-row">
-            <Button onClick={() => void openEditor()}>
-              <CropIcon />
-              {memories[selected].empty ? t('action.addPhoto') : t('action.replaceAdjust')}
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void exportPolaroid()}
-            >
-              <Download />
-              {t('action.export')}
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={memories[selected].empty}
-              onClick={() => void remove()}
-            >
-              <Trash2 />
-              {t('action.removePhoto')}
-            </Button>
-          </div>
+          {memories[selected].empty ? (
+            <div className="photo-action-row">
+              <Button onClick={() => void openEditor()}>
+                <CropIcon />
+                {t('action.addPhoto')}
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="caption-editor">
+                <input
+                  type="text"
+                  value={captionDraft}
+                  maxLength={40}
+                  placeholder={captionBusy ? t('ai.captionGenerating') : t('label.captionPlaceholder')}
+                  aria-label={t('a11y.captionInput')}
+                  disabled={captionBusy}
+                  onChange={(e) => setCaptionDraft(e.target.value.slice(0, 40))}
+                />
+                <span className="caption-count">{captionDraft.length}/40</span>
+                <Button
+                  size="sm"
+                  className="caption-save"
+                  aria-label={t('a11y.saveCaption')}
+                  disabled={captionDraft.trim() === memories[selected].caption}
+                  onClick={() => void persistCaption(captionDraft)}
+                >
+                  <Check />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="caption-clear"
+                  aria-label={t('a11y.clearCaption')}
+                  disabled={!memories[selected].caption}
+                  onClick={() => void persistCaption('')}
+                >
+                  <X />
+                </Button>
+              </div>
+              {captionFailed && (
+                <button
+                  type="button"
+                  className="caption-retry"
+                  onClick={() => void retryAutoCaption()}
+                >
+                  {t('ai.captionRetry')}
+                </button>
+              )}
+              <div className="photo-action-row">
+                <Button onClick={() => void openEditor()}>
+                  <CropIcon />
+                  {t('action.replaceAdjust')}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => void exportPolaroid()}
+                >
+                  <Download />
+                  {t('action.export')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={memories[selected].empty}
+                  onClick={() => void remove()}
+                >
+                  <Trash2 />
+                  {t('action.removePhoto')}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
+      <ModelDashboard
+        open={modelOpen}
+        models={models}
+        modelsLoading={modelsLoading}
+        modelsError={modelsError}
+        selectedModel={selectedModel}
+        onSelectModel={pickModel}
+        entries={usageEntries}
+        onInteract={armModelHideTimer}
+        onClose={closeModelDashboard}
+      />
+      <PonyMascot
+        themeId={themeId}
+        model={selectedModel}
+        editorOpen={choosing || editor || uploadMenu || modelOpen}
+      />
       <footer className="bottom">
         <div className="toolbar">
           <Button

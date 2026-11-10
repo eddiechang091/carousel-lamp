@@ -1,9 +1,12 @@
 // LLM client for the AI caption feature, backed by the same-origin
 // /api/llm proxy (Vercel serverless function) which calls Otari.
-// The browser never sees the Otari API key and never names a model —
-// the model is picked server-side from OTARI_MODEL /
-// OTARI_FALLBACK_MODEL. All errors surface as LlmUnavailableError
-// carrying the proxy's message, so the UI can show it.
+// The browser never sees the Otari API key. The model is picked from
+// the server-provided allowlist (GET /api/llm) — the browser never
+// invents one; the proxy rejects anything outside the list. Every
+// successful call records its token usage to localStorage (see
+// usage.ts) so the Model dashboard can chart it. All errors surface
+// as LlmUnavailableError carrying the proxy's message, so the UI can
+// show it.
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -22,15 +25,27 @@ export type LlmContentBlock =
   | { type: "image"; data: string; mimeType?: string }
   | { type: "image"; url: string };
 
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 export interface LlmRequest {
   messages: LlmMessage[];
   maxTokens?: number;
   temperature?: number;
+  /** One model from the server allowlist; omit for the server default. */
+  model?: string;
 }
 
 export interface LlmResult {
   text: string;
   raw: unknown;
+  /** Token usage from the proxy, when the upstream response carried it. */
+  usage?: TokenUsage | null;
+  /** The model that actually answered, when the proxy reported it. */
+  model?: string;
 }
 
 export class LlmUnavailableError extends Error {
@@ -45,6 +60,8 @@ export interface LlmService {
   complete(request: LlmRequest): Promise<LlmResult>;
 }
 
+import { recordUsage } from "./usage";
+
 const PROXY_URL = "/api/llm";
 const TIMEOUT_MS = 30000;
 
@@ -53,6 +70,31 @@ function extractText(data: unknown): string {
   const record = data as Record<string, unknown>;
   if (typeof record.text === "string") return record.text;
   return "";
+}
+
+function extractUsage(data: unknown): TokenUsage | null {
+  if (!data || typeof data !== "object") return null;
+  const usage = (data as Record<string, unknown>).usage;
+  if (!usage || typeof usage !== "object") return null;
+  const u = usage as Record<string, unknown>;
+  if (
+    typeof u.prompt_tokens !== "number" ||
+    typeof u.completion_tokens !== "number" ||
+    typeof u.total_tokens !== "number"
+  ) {
+    return null;
+  }
+  return {
+    prompt_tokens: u.prompt_tokens,
+    completion_tokens: u.completion_tokens,
+    total_tokens: u.total_tokens,
+  };
+}
+
+function extractModel(data: unknown): string | undefined {
+  if (!data || typeof data !== "object") return undefined;
+  const model = (data as Record<string, unknown>).model;
+  return typeof model === "string" && model ? model : undefined;
 }
 
 // The proxy is always reachable from the deployed app, so the service
@@ -71,6 +113,7 @@ export async function getLlmService(): Promise<LlmService> {
             messages: request.messages,
             maxTokens: request.maxTokens,
             temperature: request.temperature,
+            model: request.model,
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
@@ -93,7 +136,12 @@ export async function getLlmService(): Promise<LlmService> {
             : "";
         throw new LlmUnavailableError(serverMessage || `AI caption failed (HTTP ${response.status})`);
       }
-      return { text: extractText(data), raw: data };
+      const usage = extractUsage(data);
+      const model = extractModel(data);
+      if (usage && model) {
+        recordUsage({ t: Date.now(), model, tokens: usage.total_tokens });
+      }
+      return { text: extractText(data), raw: data, usage, model };
     },
   };
 }

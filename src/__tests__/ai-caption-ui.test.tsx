@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, setLocale } from "@/i18n";
 import { AppWrapper } from "@/components/common/PageMeta";
@@ -79,31 +79,90 @@ async function selectFirstFrame() {
   render(<Home />, { wrapper: Wrapper });
   await waitFor(() => expect(selectHooks.onSelect).not.toBeNull());
   selectHooks.onSelect!(0);
-  await screen.findByLabelText("Mood caption");
+  // The empty frame shows only the Add photo button now (the footer
+  // toolbar has its own Add photo button, so scope to the popup).
+  const actions = await waitFor(() => {
+    const el = document.querySelector(".photo-actions");
+    if (!el) throw new Error("photo-actions not rendered");
+    return el as HTMLElement;
+  });
+  return within(actions);
 }
 
-describe("ai caption button", () => {
+describe("caption editor on an empty frame", () => {
   beforeEach(() => {
     setLocale("en");
     selectHooks.complete.mockReset();
   });
 
-  it("is always shown now that the host gate is gone", async () => {
-    await selectFirstFrame();
-    const button = screen.getByRole("button", {
-      name: "Generate a poetic caption with AI",
-    });
-    expect(button).toBeInTheDocument();
-    expect(button).toBeEnabled();
+  it("shows only the Add photo button — no caption input, Export or Remove", async () => {
+    const actions = await selectFirstFrame();
+    expect(actions.getByRole("button", { name: "Add photo" })).toBeInTheDocument();
+    expect(actions.queryByLabelText("Mood caption")).not.toBeInTheDocument();
+    expect(actions.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
+    expect(actions.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument();
+    expect(
+      actions.queryByRole("button", { name: "Generate a poetic caption with AI" }),
+    ).not.toBeInTheDocument();
+    expect(selectHooks.complete).not.toHaveBeenCalled();
   });
 
-  it("shows the empty-frame notice and never calls the LLM on an empty frame", async () => {
-    await selectFirstFrame();
+  it("opens the photo editor when Add photo is tapped", async () => {
+    const actions = await selectFirstFrame();
     const user = userEvent.setup();
-    await user.click(
-      screen.getByRole("button", { name: "Generate a poetic caption with AI" }),
+    await user.click(actions.getByRole("button", { name: "Add photo" }));
+    await screen.findByText("Hang at position 01");
+  });
+});
+
+describe("model dashboard", () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    setLocale("en");
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        models: ["deepseek/deepseek-v4.1-flash-1017", "moonshotai/kimi-k3.1-pro"],
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("opens from the Model button, lists the server models, and persists the pick", async () => {
+    render(<Home />, { wrapper: Wrapper });
+    await waitFor(() => expect(selectHooks.onSelect).not.toBeNull());
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Model settings" }));
+    await screen.findByRole("button", { name: "moonshotai/kimi-k3.1-pro" });
+    expect(screen.getByRole("dialog")).toHaveClass("open");
+    expect(fetchMock).toHaveBeenCalledWith("/api/llm", { method: "GET" });
+    await user.click(screen.getByRole("button", { name: "moonshotai/kimi-k3.1-pro" }));
+    expect(localStorage.getItem("carousel-lamp:otari-model")).toBe(
+      "moonshotai/kimi-k3.1-pro",
     );
-    await screen.findByText("This frame is empty — add a photo or a caption first");
-    expect(selectHooks.complete).not.toHaveBeenCalled();
+  });
+
+  it("fades out by itself after 10s idle", async () => {
+    vi.useFakeTimers();
+    try {
+      render(<Home />, { wrapper: Wrapper });
+      // Effects flush during render, so the carousel hook is set already;
+      // waitFor would deadlock under fake timers.
+      expect(selectHooks.onSelect).not.toBeNull();
+      // fireEvent is synchronous — userEvent's timer machinery hangs here.
+      fireEvent.click(screen.getByRole("button", { name: "Model settings" }));
+      expect(document.querySelector(".model-dashboard")).toHaveClass("open");
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(document.querySelector(".model-dashboard")).not.toHaveClass("open");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
