@@ -11,6 +11,7 @@ import {
   CirclePlay,
   Pause,
   ImagePlus,
+  Cpu,
   Crop as CropIcon,
   Trash2,
   X,
@@ -46,6 +47,9 @@ import { useI18n } from '@/i18n';
 import { LlmUnavailableError } from '@/services/otari/llm';
 import { generateAiCaption } from '@/services/otari/caption';
 import { createAutoCaptionRunner } from '@/services/otari/auto-caption';
+import { fetchAllowedModels, readSelectedModel, saveSelectedModel } from '@/services/otari/models';
+import { readUsageEntries, type UsageEntry } from '@/services/otari/usage';
+import ModelDashboard from '@/components/ModelDashboard';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
 
@@ -132,6 +136,60 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeMode]);
 
+  // Model dashboard: the picker list comes from the server (GET
+  // /api/llm); the user's pick is stored locally and sent with later
+  // calls. The overlay fades out by itself after 10s idle; any
+  // pointer/key interaction inside resets the timer.
+  const [modelOpen, setModelOpen] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(() => readSelectedModel());
+  const selectedModelRef = useRef(selectedModel);
+  useEffect(() => { selectedModelRef.current = selectedModel; }, [selectedModel]);
+  const [usageEntries, setUsageEntries] = useState<UsageEntry[]>(() => readUsageEntries());
+  const modelHideTimer = useRef<number | null>(null);
+  function stopModelHideTimer() {
+    if (modelHideTimer.current !== null) {
+      window.clearTimeout(modelHideTimer.current);
+      modelHideTimer.current = null;
+    }
+  }
+  function armModelHideTimer() {
+    stopModelHideTimer();
+    modelHideTimer.current = window.setTimeout(() => setModelOpen(false), 10000);
+  }
+  useEffect(() => () => stopModelHideTimer(), []);
+  async function toggleModelDashboard() {
+    if (modelOpen) {
+      stopModelHideTimer();
+      setModelOpen(false);
+      return;
+    }
+    setUsageEntries(readUsageEntries());
+    setModelOpen(true);
+    armModelHideTimer();
+    if (models.length === 0 && !modelsLoading) {
+      setModelsLoading(true);
+      setModelsError(false);
+      try {
+        setModels(await fetchAllowedModels());
+      } catch {
+        setModelsError(true);
+      } finally {
+        setModelsLoading(false);
+      }
+    }
+  }
+  function closeModelDashboard() {
+    stopModelHideTimer();
+    setModelOpen(false);
+  }
+  function pickModel(model: string | null) {
+    saveSelectedModel(model);
+    setSelectedModel(model);
+  }
+
   // Auto-caption: when a photo is hung, the model drafts one poetic line
   // into the caption input. Refs keep the async callbacks current.
   const selectedRef = useRef(selected);
@@ -155,6 +213,7 @@ export default function Home() {
     },
     onCaption: (slot, text) => {
       autoCaptionTextRef.current.set(slot, text);
+      setUsageEntries(readUsageEntries());
       if (slot === selectedRef.current) {
         setCaptionDraft(text);
         setNotice(t('ai.captionReady'));
@@ -186,6 +245,7 @@ export default function Home() {
       themeId: themeIdRef.current,
       hasCaption,
       force,
+      model: selectedModelRef.current ?? undefined,
     });
   }
   function retryAutoCaption() {
@@ -622,6 +682,16 @@ export default function Home() {
     >
       <div className="controls-row">
         <ThemeSwitcher value={themeMode} onChange={setThemeMode} />
+        <button
+          type="button"
+          className="model-toggle"
+          aria-label={t('a11y.modelButton')}
+          aria-expanded={modelOpen}
+          onClick={() => void toggleModelDashboard()}
+        >
+          <Cpu className="theme-icon" aria-hidden="true" />
+          {t('model.title')}
+        </button>
         <LanguageSwitcher />
       </div>
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
@@ -747,6 +817,17 @@ export default function Home() {
           )}
         </div>
       )}
+      <ModelDashboard
+        open={modelOpen}
+        models={models}
+        modelsLoading={modelsLoading}
+        modelsError={modelsError}
+        selectedModel={selectedModel}
+        onSelectModel={pickModel}
+        entries={usageEntries}
+        onInteract={armModelHideTimer}
+        onClose={closeModelDashboard}
+      />
       <footer className="bottom">
         <div className="toolbar">
           <Button
