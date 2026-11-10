@@ -120,4 +120,39 @@ describe("MusicBoxAudio autoplay", () => {
     expect(oscillators[1].frequency.value).toBeCloseTo(880, 1);
     box.stop();
   });
+
+  it("setTheme switches the active melody mid-play", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    ctx.currentTime = 100.6;
+    vi.advanceTimersByTime(100);
+    const played = ctx.createOscillator.mock.results.length;
+    expect(played).toBeGreaterThan(0);
+    box.setTheme("christmas");
+    ctx.currentTime = 101.5;
+    vi.advanceTimersByTime(100);
+    const freqs = ctx.createOscillator.mock.results
+      .slice(played)
+      .map((r) => (r.value as MockOscillator).frequency.value);
+    expect(freqs.length).toBeGreaterThan(0);
+    // First Christmas note is E4 (329.63 Hz) — the Jingle Bells opening.
+    expect(freqs[0]).toBeCloseTo(329.63, 1);
+    box.stop();
+  });
+
+  it("setTheme before start applies on the next start", () => {
+    const box = new MusicBoxAudio();
+    box.setTheme("christmas");
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    ctx.currentTime = 100.6;
+    vi.advanceTimersByTime(100);
+    const oscillators = ctx.createOscillator.mock.results.map(
+      (r) => r.value as MockOscillator,
+    );
+    expect(oscillators.length).toBeGreaterThan(0);
+    expect(oscillators[0].frequency.value).toBeCloseTo(329.63, 1);
+    box.stop();
+  });
 });

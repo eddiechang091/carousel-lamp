@@ -44,6 +44,7 @@ vi.mock("@/lib/music-box", () => ({
     start = vi.fn();
     stop = vi.fn();
     setVolume = vi.fn();
+    setTheme = vi.fn();
     dispose = vi.fn();
   },
 }));
