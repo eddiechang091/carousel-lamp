@@ -37,6 +37,8 @@ export interface LlmRequest {
   temperature?: number;
   /** One model from the server allowlist; omit for the server default. */
   model?: string;
+  /** Ask Otari to run its built-in web search for this call. */
+  search?: boolean;
 }
 
 export interface LlmResult {
@@ -46,6 +48,8 @@ export interface LlmResult {
   usage?: TokenUsage | null;
   /** The model that actually answered, when the proxy reported it. */
   model?: string;
+  /** True when the proxy's search-enabled attempt answered. */
+  searched?: boolean;
 }
 
 export class LlmUnavailableError extends Error {
@@ -114,6 +118,7 @@ export async function getLlmService(): Promise<LlmService> {
             maxTokens: request.maxTokens,
             temperature: request.temperature,
             model: request.model,
+            search: request.search,
           }),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
@@ -141,7 +146,9 @@ export async function getLlmService(): Promise<LlmService> {
       if (usage && model) {
         recordUsage({ t: Date.now(), model, tokens: usage.total_tokens });
       }
-      return { text: extractText(data), raw: data, usage, model };
+      const searched =
+        data && typeof data === "object" && (data as Record<string, unknown>).searched === true;
+      return { text: extractText(data), raw: data, usage, model, searched };
     },
   };
 }
