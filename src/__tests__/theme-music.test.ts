@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { THEME_MUSIC, midiToFreq } from "@/lib/theme-music";
+import { describe, expect, it } from "vitest";
+import { midiToFreq, THEME_MUSIC } from "@/lib/theme-music";
 import { THEME_IDS } from "@/lib/themes";
 
 describe("midiToFreq", () => {
@@ -64,5 +64,52 @@ describe("THEME_MUSIC", () => {
   it("the classic theme keeps the Greensleeves opening (A G F#)", () => {
     const first = THEME_MUSIC.default.melody.slice(0, 3).map(([n]) => n);
     expect(first).toEqual([69, 67, 66]);
+  });
+
+  it("every theme names a real instrument voice for melody and bass", () => {
+    const voices = new Set(["musicBox", "pluck", "flute", "bowed", "reed", "piano", "none"]);
+    for (const [id, def] of Object.entries(THEME_MUSIC)) {
+      expect(voices.has(def.voice), `${id}: unknown voice ${def.voice}`).toBe(true);
+      expect(voices.has(def.bassVoice), `${id}: unknown bass voice ${def.bassVoice}`).toBe(true);
+    }
+  });
+
+  it("carnival is drums-only: no pitched voice, samba pattern kept", () => {
+    expect(THEME_MUSIC.carnival.voice).toBe("none");
+    expect(THEME_MUSIC.carnival.bassVoice).toBe("none");
+    expect(THEME_MUSIC.carnival.percussion?.some(Boolean)).toBe(true);
+  });
+
+  it("Chinese festivals play Chinese instruments, Western ones Western", () => {
+    expect(THEME_MUSIC["spring-festival"].voice).toBe("reed"); // suona lead
+    expect(THEME_MUSIC["mid-autumn"].voice).toBe("flute"); // dizi lead
+    expect(THEME_MUSIC["mid-autumn"].bassVoice).toBe("pluck"); // guzheng
+    expect(THEME_MUSIC["dragon-boat"].voice).toBe("pluck"); // guzheng
+    expect(THEME_MUSIC.christmas.voice).toBe("piano");
+    expect(THEME_MUSIC.thanksgiving.voice).toBe("piano");
+    expect(THEME_MUSIC["st-patrick"].voice).toBe("bowed"); // fiddle
+    expect(THEME_MUSIC.default.voice).toBe("musicBox"); // classic tine kept
+  });
+
+  it("percussion patterns are 16 eighth-note steps of valid drum kinds", () => {
+    const kinds = new Set(["kick", "drum", "shaker", "gong"]);
+    for (const [id, def] of Object.entries(THEME_MUSIC)) {
+      if (!def.percussion) continue;
+      expect(def.percussion.length, `${id}: pattern must be 16 steps`).toBe(16);
+      for (const hit of def.percussion) {
+        if (hit !== null) expect(kinds.has(hit), `${id}: unknown drum ${hit}`).toBe(true);
+      }
+    }
+    expect(THEME_MUSIC["spring-festival"].percussion?.some(Boolean)).toBe(true);
+    expect(THEME_MUSIC.carnival.percussion?.some(Boolean)).toBe(true);
+    expect(THEME_MUSIC["dragon-boat"].percussion?.some(Boolean)).toBe(true);
+  });
+
+  it("pluck damping stays in the Karplus-Strong stable range", () => {
+    for (const [id, def] of Object.entries(THEME_MUSIC)) {
+      if (def.pluckDamp === undefined) continue;
+      expect(def.pluckDamp, `${id}: damp out of range`).toBeGreaterThan(0.99);
+      expect(def.pluckDamp, `${id}: damp out of range`).toBeLessThan(1);
+    }
   });
 });

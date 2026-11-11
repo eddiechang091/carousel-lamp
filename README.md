@@ -14,7 +14,7 @@ A web-based 3D photo carousel lamp built with React, Three.js, and Vite. Hang yo
 - **AI captions** — when you hang a photo, the model looks at it and drafts one poetic caption (≤ 20 characters, current language, named for the current festival theme) into the caption input; the user edits it and saves. Served by the `/api/llm` proxy (see below) — photos are still never uploaded anywhere except to the model for that one caption
 - **Model dashboard** — the Model button next to the Theme selector opens a translucent overlay with a model picker (list comes from the server, never hardcoded) and a line chart of token usage per call
 - **Festival pony** — a small 2D pony in the bottom-right corner tells you the current theme's festival background plus 2–3 fun facts (AI-generated, from the model's own knowledge) when tapped, and nudges you after a minute idle
-- **Background music** — procedural music-box melody, one tune per theme (Greensleeves for the classic lamp, Jingle Bells for Christmas, Auld Lang Syne for New Year, and so on — see `src/lib/theme-music.ts`), toggleable. Browsers block audio before the first user gesture, so the music starts on your first tap or keypress.
+- **Background music** — one tune per theme, each played in its own synthesized instrument voice (Web Audio, no audio files): suona + festive drums for Spring Festival, guzheng plucks + dizi flute for Mid-Autumn, piano for Christmas and New Year, fiddle for St. Patrick's, samba drums for Carnival, and the original music-box tine for the classic lamp — see `src/lib/theme-music.ts` (tunes) and `src/lib/instruments.ts` (voices). Browsers block audio before the first user gesture, so the music starts on your first tap or keypress.
 - **Multilingual** — English, French, Spanish, 中文
 - **Photos stay local** — photos are stored in IndexedDB and never uploaded, except the one photo preview sent to the AI model when a photo is hung (auto-caption)
 
@@ -58,8 +58,9 @@ carousel-lamp/
 │   │   ├── photo-storage.ts      # IndexedDB persistence
 │   │   ├── view-storage.ts       # Camera position, music/theme prefs (localStorage)
 │   │   ├── sounds.ts             # Chime audio
-│   │   ├── music-box.ts          # Procedural music-box player (Web Audio)
-│   │   ├── theme-music.ts        # One tune per theme (MIDI-note melodies)
+│   │   ├── music-box.ts          # Procedural music player (Web Audio)
+│   │   ├── instruments.ts        # Synthesized instrument voices (KS pluck, flute, bowed, reed, piano, drums)
+│   │   ├── theme-music.ts        # One tune + instrument voice per theme (MIDI-note melodies)
 │   │   ├── heic.ts               # HEIC → JPEG conversion wrapper
 │   │   └── utils.ts              # Tailwind class merge helper
 │   ├── services/
