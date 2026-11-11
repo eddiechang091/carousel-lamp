@@ -13,7 +13,7 @@ A web-based 3D photo carousel lamp built with React, Three.js, and Vite. Hang yo
 - **Mood captions** — handwriting-style text rendered on each polaroid border
 - **AI captions** — when you hang a photo, the model looks at it and drafts one poetic caption (≤ 20 characters, current language, named for the current festival theme) into the caption input; the user edits it and saves. Served by the `/api/llm` proxy (see below) — photos are still never uploaded anywhere except to the model for that one caption
 - **Model dashboard** — the Model button next to the Theme selector opens a translucent overlay with a model picker (list comes from the server, never hardcoded) and a line chart of token usage per call
-- **Festival pony** — a small 2D pony in the bottom-right corner tells you the current theme's festival background plus 2–3 fun facts (AI-generated, from the model's own knowledge) when tapped, and nudges you after a minute idle
+- **Festival pony** — a small 2D pony in the bottom-right corner tells you the current theme's festival background plus 2–3 fresh fun facts, searched live on the web via Otari (a different angle each tap), when tapped, and nudges you after a minute idle
 - **Background music** — one tune per theme, each played in its own synthesized instrument voice (Web Audio, no audio files): suona + festive drums for Spring Festival, guzheng plucks + dizi flute for Mid-Autumn, piano for Christmas and New Year, fiddle for St. Patrick's, samba drums for Carnival, and the original music-box tine for the classic lamp — see `src/lib/theme-music.ts` (tunes) and `src/lib/instruments.ts` (voices). Browsers block audio before the first user gesture, so the music starts on your first tap or keypress.
 - **Multilingual** — English, French, Spanish, 中文
 - **Photos stay local** — photos are stored in IndexedDB and never uploaded, except the one photo preview sent to the AI model when a photo is hung (auto-caption)
@@ -188,17 +188,23 @@ else in the app keeps working.
   (`OTARI_MODELS`, else `[OTARI_MODEL, OTARI_FALLBACK_MODEL]`); `POST
   /api/llm` accepts an optional `model` from that list and rejects
   anything else with 400. A successful call returns `{ text, model,
-  usage }` — the model actually used and its token usage — and the
+  usage, searched }` — the model actually used, its token usage, and
+  whether the call ran a live web search — and the
   client records each call in localStorage (`carousel-lamp:otari-usage`,
   cap 50). The Model button next to the Theme selector opens a
   translucent overlay with the picker and an SVG line chart of total
   tokens per call (last 20); it fades out after 10s idle.
 - **Festival pony.** Tapping the pony sends a text-only chat request for
   the current theme's festival background + 2–3 fun facts (≤ 420
-  characters, shown in a bubble, marked AI-generated). The facts come
-  from the model's own knowledge — no live web search is used or
-  claimed. The pony also nudges after 60s idle, then at most every
-  180s, max 3 per session, only when no editor/modal is open.
+  characters, shown in a bubble, marked AI-generated). The request
+  carries `search: true`, so the proxy attaches Otari's built-in
+  `otari_web_search` tool and the facts come from a live web search —
+  today's date plus a rotating angle (this year's news, food, history,
+  how countries celebrate, recent records) keep each tap fresh. If the
+  search call fails, the proxy retries without the tool and the bubble
+  falls back to the plain AI-generated note. The pony also nudges after
+  60s idle, then at most every 180s, max 3 per session, only when no
+  editor/modal is open.
 - The browser never sees the API key. The model is picked from the
   server-provided allowlist; the proxy logs only the outcome and the
   model used, never request bodies or the key.

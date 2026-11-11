@@ -147,7 +147,9 @@ export async function getLlmService(): Promise<LlmService> {
         recordUsage({ t: Date.now(), model, tokens: usage.total_tokens });
       }
       const searched =
-        data && typeof data === "object" && (data as Record<string, unknown>).searched === true;
+        typeof data === "object" &&
+        data !== null &&
+        (data as Record<string, unknown>).searched === true;
       return { text: extractText(data), raw: data, usage, model, searched };
     },
   };
