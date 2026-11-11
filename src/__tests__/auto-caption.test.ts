@@ -20,6 +20,7 @@ function setup(generate: Mock<Generate>) {
     onCaption: (slot, text) => events.push(`caption:${slot}:${text}`),
     onError: (slot) => events.push(`error:${slot}`),
     onDone: (slot) => events.push(`done:${slot}`),
+    retryDelayMs: 0,
   });
   return { runner, events };
 }
@@ -49,22 +50,31 @@ describe("auto-caption runner", () => {
     expect(events).toEqual(["start:2", "caption:2:Golden hour glow", "done:2"]);
   });
 
-  it("allows a retry after a failure, and a forced retry after success", async () => {
+  it("retries once automatically after a failure, then succeeds", async () => {
     const generate = vi
       .fn<Generate>()
       .mockRejectedValueOnce(new Error("boom"))
       .mockResolvedValue("Moonlit spin");
     const { runner, events } = setup(generate);
     await runner.request(1, baseReq);
-    expect(events).toEqual(["start:1", "error:1", "done:1"]);
-    await runner.request(1, baseReq);
     expect(generate).toHaveBeenCalledTimes(2);
-    expect(events).toContain("caption:1:Moonlit spin");
+    expect(events).toEqual(["start:1", "start:1", "caption:1:Moonlit spin", "done:1"]);
     // Success is deduped unless forced.
     await runner.request(1, baseReq);
     expect(generate).toHaveBeenCalledTimes(2);
     await runner.request(1, { ...baseReq, force: true });
     expect(generate).toHaveBeenCalledTimes(3);
+  });
+
+  it("reports the error once when the retry fails too", async () => {
+    const generate = vi.fn<Generate>().mockRejectedValue(new Error("boom"));
+    const { runner, events } = setup(generate);
+    await runner.request(1, baseReq);
+    expect(generate).toHaveBeenCalledTimes(2);
+    expect(events).toEqual(["start:1", "start:1", "error:1", "done:1"]);
+    // A failed slot can be retried by hand afterwards.
+    await runner.request(1, baseReq);
+    expect(generate).toHaveBeenCalledTimes(4);
   });
 
   it("passes the photo and locale to the model — no theme", async () => {

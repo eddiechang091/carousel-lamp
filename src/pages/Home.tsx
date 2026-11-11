@@ -212,6 +212,10 @@ export default function Home() {
   // that arrives after the locale moved on is stale and must not be
   // saved (it would store a caption in the wrong language).
   const captionLocaleRef = useRef(new Map<number, Locale>());
+  // Preview each slot's latest generation was requested for. A result
+  // that arrives after the photo was removed, replaced, or re-cropped
+  // belongs to a photo that is no longer there — drop it.
+  const captionPreviewRef = useRef(new Map<number, string>());
   const generatingSlotRef = useRef<number | null>(null);
   const autoCaption = useRef(createAutoCaptionRunner({
     generate: generateAiCaption,
@@ -224,6 +228,7 @@ export default function Home() {
     },
     onCaption: (slot, text) => {
       if (captionLocaleRef.current.get(slot) !== localeRef.current) return;
+      if (captionPreviewRef.current.get(slot) !== memoriesRef.current[slot]?.preview) return;
       setUsageEntries(readUsageEntries());
       void queueCaptionSave(slot, text);
       if (slot === selectedRef.current) {
@@ -254,6 +259,7 @@ export default function Home() {
   // Ask the model for a caption for one freshly uploaded photo.
   function requestAutoCaption(slot: number, preview: string, hasCaption: boolean, force = false) {
     captionLocaleRef.current.set(slot, localeRef.current);
+    captionPreviewRef.current.set(slot, preview);
     void autoCaption.current.request(slot, {
       imageDataUrl: preview,
       locale: localeRef.current,
@@ -674,7 +680,9 @@ export default function Home() {
     if (slot < 0 || !api.current) return;
     const text = next.trim().slice(0, 40);
     const current = memoriesRef.current[slot];
-    if (!current || text === current.caption) return;
+    // Never save a caption onto an empty frame (the photo was removed
+    // while its generation was still in flight).
+    if (!current || current.empty || text === current.caption) return;
     // A user-initiated save (hang / remove / swap) wins the store;
     // wait for it briefly instead of colliding with it.
     for (let i = 0; i < 20 && pendingSave.current; i++) {
