@@ -267,7 +267,7 @@
 .photo-actions {
   position: absolute; z-index: 4; bottom: 190px; left: 50%; transform: translateX(-50%);
   display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 24px;
-  width: min(92vw, 420px);
+  width: min(92vw, 460px);
 }
 .caption-editor { display: flex; align-items: center; gap: 6px; }
 .caption-text { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 14px; font-size: 15px; color: #48514d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
@@ -291,7 +291,7 @@
    carousel so the lamp stays visible. */
 .model-dashboard {
   position: absolute; z-index: 30; bottom: 190px; left: 50%; transform: translateX(-50%);
-  width: min(92vw, 420px); padding: 16px 18px; border-radius: 18px;
+  width: min(92vw, 460px); padding: 16px 18px; border-radius: 18px;
   background: rgba(255, 250, 240, 0.72);
   backdrop-filter: blur(14px) saturate(120%); -webkit-backdrop-filter: blur(14px) saturate(120%);
   border: 1px solid rgba(255, 255, 255, 0.55);
@@ -378,8 +378,12 @@ button.pony-bubble { cursor: pointer; text-align: left; font-family: inherit; }
   .pony-button svg { width: 60px; height: 50px; }
 }
 .caption-save, .caption-edit { flex: none; width: 40px; padding: 0; }
-.photo-action-row { display: flex; gap: 8px; }
-.photo-action-row button { flex: 1; white-space: nowrap; }
+/* The three action buttons must never stick out of the panel: their
+   combined min-content width is ~400px at 420px panels (zero slack),
+   and wider font rendering (e.g. Microsoft YaHei fallback on Windows)
+   overflows it. Let the row wrap onto a second line instead. */
+.photo-action-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-action-row button { flex: 1; white-space: nowrap; padding: 0 10px; }
 .photo-actions button { border-radius: 20px; font-size: 13px; height: 40px; }
 .night .focus-bar, .night .photo-actions, .night .position-picker {
   background: #332c42f0; border-color: #ffffff22; color: #eae2ed;
