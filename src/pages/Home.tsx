@@ -336,6 +336,7 @@ export default function Home() {
   useEffect(() => {
     const instance = new MusicBoxAudio();
     music.current = instance;
+    instance.setTheme(resolveTheme(themeMode));
     const begin = () => {
       if (musicOnRef.current) instance.start();
       window.removeEventListener('pointerdown', begin);
@@ -353,6 +354,11 @@ export default function Home() {
       music.current = null;
     };
   }, []);
+  // The tune follows the carousel theme (auto mode included: the hourly
+  // re-check changes themeId, and this picks it up).
+  useEffect(() => {
+    music.current?.setTheme(themeId);
+  }, [themeId]);
   useEffect(() => {
     api.current?.selectMode(choosing);
   }, [choosing]);

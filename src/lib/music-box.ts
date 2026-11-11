@@ -1,28 +1,34 @@
 // Retro music-box background melody, synthesised entirely with the Web Audio
-// API so no external audio files need to be loaded. The tune is "Greensleeves",
-// a classic music-box melody, rendered with a bright, ringing tine timbre.
+// API so no external audio files need to be loaded. Each festival theme has
+// its own tune (see theme-music.ts — Greensleeves for the classic lamp,
+// Jingle Bells for Christmas, and so on), rendered with a bright, ringing
+// tine timbre.
+import { THEME_MUSIC, midiToFreq } from "./theme-music";
+import type { ThemeId } from "./themes";
+
 export class MusicBoxAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private timer: number | null = null;
   private nextNoteTime = 0;
   private noteIndex = 0;
-  private readonly beat = 0.5; // seconds per quarter note
+  private theme: ThemeId = "default";
+  private bassByIndex = new Map<number, number>(THEME_MUSIC.default.bass);
 
-  // [frequency, duration in beats] — Greensleeves in A minor.
-  private readonly melody: [number, number][] = [
-    [440, 1], [392, 0.5], [369.99, 0.5], [329.63, 2],
-    [293.66, 2], [329.63, 1], [369.99, 1], [392, 2],
-    [440, 1], [392, 0.5], [369.99, 0.5], [329.63, 2],
-    [293.66, 2], [329.63, 1], [369.99, 3],
-  ];
-  // Soft low accompaniment played on the downbeat of each bar (aligned to melody).
-  private readonly bass: (number | null)[] = [
-    110, null, null, null,
-    73.42, null, null, null,
-    110, null, null, null,
-    73.42, null, null, null,
-  ];
+  private get def() {
+    return THEME_MUSIC[this.theme];
+  }
+
+  /** Switch tune when the carousel theme changes; restarts the loop cleanly. */
+  setTheme(themeId: ThemeId) {
+    if (themeId === this.theme) return;
+    this.theme = themeId;
+    this.bassByIndex = new Map<number, number>(THEME_MUSIC[themeId].bass);
+    this.noteIndex = 0;
+    if (this.timer !== null && this.context) {
+      this.nextNoteTime = this.context.currentTime + 0.1;
+    }
+  }
 
   private ensureContext() {
     this.context ??= new AudioContext();
@@ -37,11 +43,16 @@ export class MusicBoxAudio {
     try {
       this.ensureContext();
       const a = this.context!;
+      // Resume FIRST, before the already-playing guard: on page load the
+      // fresh context is suspended (browser autoplay policy) and that first
+      // resume() is rejected. A later start() — e.g. from the first
+      // pointer/key gesture — must get another chance to resume, so this
+      // runs even while the scheduler interval is already ticking.
+      void a.resume();
       if (this.timer !== null) return; // already playing
       this.noteIndex = 0;
       this.nextNoteTime = a.currentTime + 0.1;
       this.timer = window.setInterval(() => this.schedule(), 25);
-      void a.resume();
     } catch {
       /* Background music is a nice-to-have; ignore when audio is unavailable. */
     }
@@ -57,13 +68,14 @@ export class MusicBoxAudio {
   private schedule() {
     const a = this.context;
     if (!a || this.timer === null) return;
+    const { melody, beat } = this.def;
     while (this.nextNoteTime < a.currentTime + 0.12) {
-      const [frequency, beats] = this.melody[this.noteIndex];
-      this.playTone(frequency, this.nextNoteTime, 1.7, 0.5);
-      const bass = this.bass[this.noteIndex];
-      if (bass) this.playTone(bass, this.nextNoteTime, 2.4, 0.22);
-      this.nextNoteTime += beats * this.beat;
-      this.noteIndex = (this.noteIndex + 1) % this.melody.length;
+      const [note, beats] = melody[this.noteIndex];
+      this.playTone(midiToFreq(note), this.nextNoteTime, 1.7, 0.5);
+      const bass = this.bassByIndex.get(this.noteIndex);
+      if (bass !== undefined) this.playTone(midiToFreq(bass), this.nextNoteTime, 2.4, 0.22);
+      this.nextNoteTime += beats * beat;
+      this.noteIndex = (this.noteIndex + 1) % melody.length;
     }
   }
 
