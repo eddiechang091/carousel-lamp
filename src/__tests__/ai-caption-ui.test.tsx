@@ -141,10 +141,11 @@ describe("model dashboard", () => {
     await waitFor(() => expect(selectHooks.onSelect).not.toBeNull());
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Model settings" }));
-    await screen.findByRole("button", { name: "moonshotai/kimi-k3.1-pro" });
+    const select = await screen.findByRole("combobox");
     expect(screen.getByRole("dialog")).toHaveClass("open");
     expect(fetchMock).toHaveBeenCalledWith("/api/llm", { method: "GET" });
-    await user.click(screen.getByRole("button", { name: "moonshotai/kimi-k3.1-pro" }));
+    expect(within(select).getByRole("option", { name: "moonshotai/kimi-k3.1-pro" })).toBeInTheDocument();
+    await user.selectOptions(select, "moonshotai/kimi-k3.1-pro");
     expect(localStorage.getItem("carousel-lamp:otari-model")).toBe(
       "moonshotai/kimi-k3.1-pro",
     );

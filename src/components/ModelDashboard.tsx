@@ -63,30 +63,19 @@ export default function ModelDashboard({
         ) : models.length === 0 ? (
           <p className="model-status">{t("model.noModels")}</p>
         ) : (
-          <ul className="model-list">
-            <li>
-              <button
-                type="button"
-                className={selectedModel === null ? "selected" : ""}
-                aria-pressed={selectedModel === null}
-                onClick={() => onSelectModel(null)}
-              >
-                {t("model.default")}
-              </button>
-            </li>
+          <select
+            className="model-select"
+            aria-label={t("model.title")}
+            value={selectedModel ?? ""}
+            onChange={(e) => onSelectModel(e.target.value === "" ? null : e.target.value)}
+          >
+            <option value="">{t("model.default")}</option>
             {models.map((model) => (
-              <li key={model}>
-                <button
-                  type="button"
-                  className={selectedModel === model ? "selected" : ""}
-                  aria-pressed={selectedModel === model}
-                  onClick={() => onSelectModel(model)}
-                >
-                  {model}
-                </button>
-              </li>
+              <option key={model} value={model}>
+                {model}
+              </option>
             ))}
-          </ul>
+          </select>
         )}
       </section>
       <section className="model-usage" aria-label={t("model.usageTitle")}>
@@ -95,7 +84,7 @@ export default function ModelDashboard({
           <p className="model-status">{t("model.noUsage")}</p>
         ) : (
           <>
-            <UsageChart entries={entries} />
+            <UsageChart entries={entries} models={models} />
             {last && (
               <p className="model-usage-latest">
                 {t("model.latest", {

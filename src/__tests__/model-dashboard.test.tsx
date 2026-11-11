@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nProvider, setLocale } from "@/i18n";
 import ModelDashboard from "@/components/ModelDashboard";
@@ -27,25 +27,28 @@ function renderDashboard(props: Partial<typeof baseProps> = {}) {
 }
 
 describe("ModelDashboard", () => {
-  it("lists the server models plus a server-default option", () => {
+  it("offers the server models plus a server-default option in a dropdown", () => {
     renderDashboard();
-    expect(screen.getByRole("button", { name: "Server default" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "deepseek/deepseek-v4.1-flash-1017" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "moonshotai/kimi-k3.1-pro" }),
-    ).toBeInTheDocument();
+    const select = screen.getByRole("combobox");
+    const options = within(select).getAllByRole("option");
+    expect(options).toHaveLength(3);
+    expect(options[0]).toHaveValue("");
+    expect(options[0]).toHaveTextContent("Server default");
+    expect(options[1]).toHaveValue("deepseek/deepseek-v4.1-flash-1017");
+    expect(options[2]).toHaveValue("moonshotai/kimi-k3.1-pro");
+    expect(select).toHaveValue("");
   });
 
-  it("reports the picked model and marks it selected", async () => {
+  it("reports the picked model through the dropdown", async () => {
     const onSelectModel = vi.fn();
     const user = userEvent.setup();
     renderDashboard({ onSelectModel, selectedModel: "moonshotai/kimi-k3.1-pro" });
-    const picked = screen.getByRole("button", { name: "moonshotai/kimi-k3.1-pro" });
-    expect(picked).toHaveAttribute("aria-pressed", "true");
-    await user.click(screen.getByRole("button", { name: "Server default" }));
+    const select = screen.getByRole("combobox");
+    expect(select).toHaveValue("moonshotai/kimi-k3.1-pro");
+    await user.selectOptions(select, "");
     expect(onSelectModel).toHaveBeenCalledWith(null);
+    await user.selectOptions(select, "deepseek/deepseek-v4.1-flash-1017");
+    expect(onSelectModel).toHaveBeenCalledWith("deepseek/deepseek-v4.1-flash-1017");
   });
 
   it("shows loading, error and empty states for the model list", () => {
@@ -82,6 +85,19 @@ describe("ModelDashboard", () => {
     expect(screen.queryByText(/No AI calls yet/)).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Token usage/ })).toBeInTheDocument();
     expect(screen.getByText("Latest: 25 tokens · acme/vision-1")).toBeInTheDocument();
+  });
+
+  it("legends each model's total tokens in the chart window", () => {
+    renderDashboard({
+      entries: [
+        { t: 1, model: "deepseek/deepseek-v4.1-flash-1017", tokens: 10 },
+        { t: 2, model: "moonshotai/kimi-k3.1-pro", tokens: 25 },
+        { t: 3, model: "deepseek/deepseek-v4.1-flash-1017", tokens: 5 },
+      ],
+    });
+    expect(screen.getByText("deepseek-v4.1-flash-1017 · 15")).toBeInTheDocument();
+    expect(screen.getByText("kimi-k3.1-pro · 25")).toBeInTheDocument();
+    expect(screen.getByText("Latest: 5 tokens · deepseek/deepseek-v4.1-flash-1017")).toBeInTheDocument();
   });
 
   it("is hidden when closed", () => {
