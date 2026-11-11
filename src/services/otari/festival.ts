@@ -27,11 +27,11 @@ export function pickFactAngle(random: () => number = Math.random): string {
   return FESTIVAL_FACT_ANGLES[Math.floor(random() * FESTIVAL_FACT_ANGLES.length)];
 }
 
-// Nudge cadence (Lucky Cat pattern): first nudge after 60s idle, then
-// at most every 180s, max 3 nudges per session, only when no
+// Nudge cadence (Lucky Cat pattern): first nudge 2s after entry, then
+// at most every 20s idle, max 3 nudges per session, only when no
 // editor/modal is open and no bubble is showing.
-export const FIRST_NUDGE_IDLE_MS = 60_000;
-export const NUDGE_INTERVAL_MS = 180_000;
+export const FIRST_NUDGE_IDLE_MS = 2_000;
+export const NUDGE_INTERVAL_MS = 20_000;
 export const MAX_NUDGES_PER_SESSION = 3;
 export const NUDGE_BUBBLE_MS = 12_000;
 

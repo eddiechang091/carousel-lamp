@@ -84,7 +84,7 @@ describe("PonyMascot", () => {
     expect(completeMock).toHaveBeenCalledTimes(2);
   });
 
-  it("nudges at most 3 times: 60s idle, then every 180s, 12s on screen", async () => {
+  it("nudges at most 3 times: 2s after entry, then every 20s idle, 12s on screen", async () => {
     vi.useFakeTimers();
     renderPony();
     const nudge = () => screen.queryByText("Psst — tap me for a festival story!");
@@ -95,7 +95,7 @@ describe("PonyMascot", () => {
     expect(nudge()).toBeInTheDocument();
     await vi.advanceTimersByTimeAsync(NUDGE_BUBBLE_MS);
     expect(nudge()).not.toBeInTheDocument();
-    // Second nudge 180s after the first.
+    // Second nudge 20s after the first.
     await vi.advanceTimersByTimeAsync(NUDGE_INTERVAL_MS - NUDGE_BUBBLE_MS);
     expect(nudge()).toBeInTheDocument();
     await vi.advanceTimersByTimeAsync(NUDGE_BUBBLE_MS);
