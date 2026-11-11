@@ -8,6 +8,9 @@ export type SavedPhoto = {
   crop: Crop;
   empty: boolean;
   caption: string;
+  /** True when the caption was written by the AI (not the user): the UI
+      regenerates it in the new language when the locale changes. */
+  captionAi?: boolean;
 };
 function openStore(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {

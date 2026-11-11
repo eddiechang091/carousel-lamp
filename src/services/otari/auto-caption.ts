@@ -1,15 +1,14 @@
 import type { Locale } from "@/i18n";
-import type { ThemeId } from "@/lib/themes";
 
 // Auto-caption runner: one in-flight attempt per slot, deduped.
-// The UI (Home) owns the loading/error display; this module only decides
-// when to call the model and reports back through callbacks, so the
-// trigger conditions are unit-testable without rendering the page.
+// The UI (Home) owns the loading/error display and the auto-save;
+// this module only decides when to call the model and reports back
+// through callbacks, so the trigger conditions are unit-testable
+// without rendering the page.
 
 export type AutoCaptionRequest = {
   imageDataUrl: string;
   locale: Locale;
-  themeId: ThemeId;
   /** Skip when the photo already has a saved caption (keep the user's). */
   hasCaption?: boolean;
   /** Retry even if this slot was already attempted. */
@@ -22,7 +21,6 @@ export type AutoCaptionDeps = {
   generate: (opts: {
     imageDataUrl: string;
     locale: Locale;
-    themeId: ThemeId;
     model?: string;
   }) => Promise<string>;
   onStart?: (slot: number) => void;
@@ -44,7 +42,6 @@ export function createAutoCaptionRunner(deps: AutoCaptionDeps) {
       const text = await deps.generate({
         imageDataUrl: req.imageDataUrl,
         locale: req.locale,
-        themeId: req.themeId,
         model: req.model,
       });
       deps.onCaption?.(slot, text);

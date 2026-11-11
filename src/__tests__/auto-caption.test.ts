@@ -1,18 +1,15 @@
 import { describe, it, expect, vi, type Mock } from "vitest";
 import { createAutoCaptionRunner } from "@/services/otari/auto-caption";
 import type { Locale } from "@/i18n";
-import type { ThemeId } from "@/lib/themes";
 
 type Generate = (opts: {
   imageDataUrl: string;
   locale: Locale;
-  themeId: ThemeId;
 }) => Promise<string>;
 
 const baseReq = {
   imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
   locale: "en" as const,
-  themeId: "christmas" as const,
 };
 
 function setup(generate: Mock<Generate>) {
@@ -70,14 +67,13 @@ describe("auto-caption runner", () => {
     expect(generate).toHaveBeenCalledTimes(3);
   });
 
-  it("passes the photo, locale and theme to the model", async () => {
+  it("passes the photo and locale to the model — no theme", async () => {
     const generate = vi.fn<Generate>().mockResolvedValue("Glow");
     const { runner } = setup(generate);
     await runner.request(0, baseReq);
     expect(generate).toHaveBeenCalledWith({
       imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
       locale: "en",
-      themeId: "christmas",
     });
   });
 });

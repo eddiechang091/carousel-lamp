@@ -8,10 +8,10 @@ import {
 import { getLlmService, LlmUnavailableError } from "@/services/otari/llm";
 
 describe("ai caption", () => {
-  it("caps at 20 characters", () => {
-    expect(MAX_CAPTION_CHARS).toBe(20);
-    expect(cleanCaption("a".repeat(30))).toHaveLength(20);
-    expect(cleanCaption("金色黄昏里我们笑得像孩子一样追着风跑过整个夏天")).toHaveLength(20);
+  it("caps at 40 characters — the same cap as the caption input", () => {
+    expect(MAX_CAPTION_CHARS).toBe(40);
+    expect(cleanCaption("a".repeat(50))).toHaveLength(40);
+    expect(cleanCaption("金".repeat(50))).toHaveLength(40);
   });
 
   it("strips wrapping quotes and collapses whitespace", () => {
@@ -25,50 +25,30 @@ describe("ai caption", () => {
     const messages = buildCaptionMessages({
       imageDataUrl: dataUrl,
       locale: "zh",
-      themeId: "christmas",
     });
     expect(messages).toHaveLength(2);
     const [system, user] = messages;
     expect(system.role).toBe("system");
     expect(typeof system.content).toBe("string");
     expect(system.content as string).toContain("Chinese");
-    expect(system.content as string).toContain("20");
+    expect(system.content as string).toContain("40");
     expect(user.role).toBe("user");
     expect(Array.isArray(user.content)).toBe(true);
     const blocks = user.content as Array<{ type: string; [key: string]: unknown }>;
     expect(blocks).toHaveLength(2);
     expect(blocks[0].type).toBe("text");
-    expect(String(blocks[0].text)).toContain("Christmas");
+    expect(String(blocks[0].text)).toContain("photo itself");
     expect(blocks[1]).toEqual({ type: "image", data: dataUrl });
   });
 
-  it("names every festival theme in the prompt, not just the classic four", () => {
-    const expected: Record<string, string> = {
-      default: "Classic",
-      "new-year": "New Year's Day",
-      valentine: "Valentine's Day",
-      "spring-festival": "Spring Festival",
-      carnival: "Carnival",
-      "st-patrick": "St. Patrick's Day",
-      "april-fools": "April Fools' Day",
-      easter: "Easter",
-      "mothers-day": "Mother's Day",
-      "dragon-boat": "Dragon Boat Festival",
-      "mid-autumn": "Mid-Autumn Festival",
-      halloween: "Halloween",
-      diwali: "Diwali",
-      thanksgiving: "Thanksgiving",
-      christmas: "Christmas",
-    };
-    for (const [themeId, name] of Object.entries(expected)) {
+  it("never mentions a theme in the prompt — the caption is about the photo only", () => {
+    for (const theme of ["Christmas", "Halloween", "Spring Festival", "Carnival", "Easter"]) {
       const messages = buildCaptionMessages({
         imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
         locale: "en",
-        themeId: themeId as Parameters<typeof buildCaptionMessages>[0]["themeId"],
       });
-      const user = messages[1];
-      const blocks = user.content as Array<{ type: string; text?: string }>;
-      expect(String(blocks[0].text)).toContain(name);
+      const allText = JSON.stringify(messages);
+      expect(allText).not.toContain(theme);
     }
   });
 
@@ -93,7 +73,6 @@ describe("ai caption", () => {
       const caption = await generateAiCaption({
         imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
         locale: "en",
-        themeId: "default",
       });
       expect(caption).toBe("Golden hour glow");
       expect(fetchMock).toHaveBeenCalledOnce();
@@ -114,7 +93,6 @@ describe("ai caption", () => {
       const caption = await generateAiCaption({
         imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
         locale: "en",
-        themeId: "default",
         model: "other/vision-2",
       });
       expect(caption).toBe("Glow");
@@ -158,7 +136,6 @@ describe("ai caption", () => {
         generateAiCaption({
           imageDataUrl: "data:image/jpeg;base64,/9j/AAAA",
           locale: "en",
-          themeId: "default",
         }),
       ).rejects.toThrowError("empty");
     });
