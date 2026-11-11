@@ -18,7 +18,7 @@
 // voice instead of one shared music-box tine.
 import { midiToFreq } from "./theme-music";
 
-export type VoiceId = "musicBox" | "pluck" | "flute" | "bowed" | "reed" | "piano";
+export type VoiceId = "musicBox" | "pluck" | "flute" | "bowed" | "reed" | "piano" | "none";
 export type DrumKind = "kick" | "drum" | "shaker" | "gong";
 
 /** Seconds of ring for a plucked-string buffer. Notes overlap and ring out. */
@@ -114,19 +114,6 @@ export class InstrumentVoices {
     return buf;
   }
 
-  private vibrato(target: AudioParam, rateHz: number, depthHz: number, time: number) {
-    const lfo = this.ctx.createOscillator();
-    lfo.type = "sine";
-    lfo.frequency.value = rateHz;
-    const depth = this.ctx.createGain();
-    depth.gain.value = depthHz;
-    lfo.connect(depth);
-    depth.connect(target);
-    lfo.start(time);
-    lfo.stop(time + 4);
-    return lfo;
-  }
-
   /** Play one melody/bass note in the given voice at the given time. */
   playNote(
     voice: VoiceId,
@@ -153,6 +140,9 @@ export class InstrumentVoices {
         break;
       case "piano":
         this.playPiano(freq, time, opts.peak ?? 0.45);
+        break;
+      case "none":
+        // Drums-only theme: the melody is silent, the percussion is the music.
         break;
     }
   }
@@ -252,7 +242,13 @@ export class InstrumentVoices {
     noise.stop(time + dur + 0.15);
   }
 
-  /** Bowed string (erhu / violin): sawtooth + vibrato + slow attack. */
+  /**
+   * Bowed string (erhu / violin). A bare sawtooth through a lowpass sounds
+   * like a cheap synth string, so the voice is built around the violin's
+   * body: two detuned sawtooths (chorus) through a formant peak (~900 Hz,
+   * the bridge-hill resonance) plus a lowpass, bow noise, and vibrato that
+   * fades in after the bow catches (~0.18s) the way a real player does.
+   */
   private playBowed(
     freq: number,
     time: number,
@@ -261,32 +257,68 @@ export class InstrumentVoices {
     glideFrom?: number,
   ): void {
     const dur = Math.max(0.25, noteSeconds);
-    const osc = this.ctx.createOscillator();
-    osc.type = "sawtooth";
-    if (glideFrom !== undefined && glideFrom > 0 && glideFrom !== freq) {
-      osc.frequency.setValueAtTime(glideFrom, time);
-      osc.frequency.exponentialRampToValueAtTime(freq, time + 0.07);
-    } else {
-      osc.frequency.value = freq;
-    }
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 2200;
+    const formant = this.ctx.createBiquadFilter();
+    formant.type = "peaking";
+    formant.frequency.value = 900;
+    formant.Q.value = 1;
+    formant.gain.value = 7;
+    const lowpass = this.ctx.createBiquadFilter();
+    lowpass.type = "lowpass";
+    lowpass.frequency.value = 3200;
+    formant.connect(lowpass);
+    lowpass.connect(this.master);
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0, time);
-    gain.gain.linearRampToValueAtTime(peak, time + 0.12);
-    gain.gain.setValueAtTime(peak, time + Math.max(0.13, dur - 0.12));
-    gain.gain.linearRampToValueAtTime(0, time + dur + 0.12);
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.master);
-    this.vibrato(osc.frequency, 5.5, freq * 0.008, time);
-    osc.start(time);
-    osc.stop(time + dur + 0.15);
-    osc.onended = () => {
-      osc.disconnect();
-      gain.disconnect();
-    };
+    gain.gain.linearRampToValueAtTime(peak, time + 0.14);
+    gain.gain.setValueAtTime(peak, time + Math.max(0.15, dur - 0.15));
+    gain.gain.linearRampToValueAtTime(0, time + dur + 0.15);
+    gain.connect(formant);
+    // Delayed vibrato: depth ramps from 0 to full over 0.18s.
+    const lfo = this.ctx.createOscillator();
+    lfo.type = "sine";
+    lfo.frequency.value = 5.5;
+    const depth = this.ctx.createGain();
+    depth.gain.setValueAtTime(0, time);
+    depth.gain.linearRampToValueAtTime(freq * 0.008, time + 0.18);
+    lfo.connect(depth);
+    lfo.start(time);
+    lfo.stop(time + dur + 0.2);
+    for (const cents of [-4, 4]) {
+      const osc = this.ctx.createOscillator();
+      osc.type = "sawtooth";
+      const detuned = freq * Math.pow(2, cents / 1200);
+      if (glideFrom !== undefined && glideFrom > 0 && glideFrom !== freq) {
+        osc.frequency.setValueAtTime(
+          glideFrom * Math.pow(2, cents / 1200),
+          time,
+        );
+        osc.frequency.exponentialRampToValueAtTime(detuned, time + 0.07);
+      } else {
+        osc.frequency.value = detuned;
+      }
+      depth.connect(osc.frequency);
+      osc.connect(gain);
+      osc.start(time);
+      osc.stop(time + dur + 0.2);
+      osc.onended = () => {
+        osc.disconnect();
+      };
+    }
+    // Bow noise: a whisper of bandpassed noise under the note.
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this.getNoise();
+    noise.loop = true;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 1200;
+    bp.Q.value = 0.8;
+    const ng = this.ctx.createGain();
+    ng.gain.value = 0.03;
+    noise.connect(bp);
+    bp.connect(ng);
+    ng.connect(gain);
+    noise.start(time);
+    noise.stop(time + dur + 0.2);
   }
 
   /** Suona reed: bright harmonic stack + fast attack, through a lowpass. */
@@ -320,31 +352,63 @@ export class InstrumentVoices {
     }
   }
 
-  /** Piano: additive partials with staggered decays. */
+  /**
+   * Piano. The first version (four exact-harmonic sine partials) sounded
+   * like a music box, not a piano. A piano is a struck, stiff string:
+   * inharmonic partials (f_n = n*f*sqrt(1 + B*n^2), B ~ 0.0003, so the
+   * upper partials run slightly sharp), gains and decays falling with the
+   * partial number, a detuned pair on the fundamental (double-strung
+   * chorus), and a short hammer-noise thunk at the attack.
+   */
   private playPiano(freq: number, time: number, peak: number): void {
+    const B = 0.0003;
     const partials: [number, number, number][] = [
-      [1, 1, 2.2],
-      [2, 0.45, 1.0],
-      [3, 0.22, 0.5],
-      [4.2, 0.1, 0.25],
+      // [harmonic number, gain, decay seconds]
+      [1, 1, 2.6],
+      [2, 0.6, 1.6],
+      [3, 0.35, 1.0],
+      [4, 0.22, 0.6],
+      [5, 0.12, 0.38],
+      [6, 0.07, 0.24],
     ];
-    for (const [ratio, weight, decay] of partials) {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq * ratio;
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(peak * weight, time + 0.004);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
-      osc.connect(gain);
-      gain.connect(this.master);
-      osc.start(time);
-      osc.stop(time + decay + 0.05);
-      osc.onended = () => {
-        osc.disconnect();
-        gain.disconnect();
-      };
+    for (const [n, weight, decay] of partials) {
+      const f = n * freq * Math.sqrt(1 + B * n * n);
+      // Double-strung chorus on the fundamental only.
+      const detunes = n === 1 ? [-1.5, 1.5] : [0];
+      for (const cents of detunes) {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.value = f * Math.pow(2, cents / 1200);
+        const w = n === 1 ? weight * 0.6 : weight;
+        gain.gain.setValueAtTime(0, time);
+        gain.gain.linearRampToValueAtTime(peak * w, time + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
+        osc.connect(gain);
+        gain.connect(this.master);
+        osc.start(time);
+        osc.stop(time + decay + 0.05);
+        osc.onended = () => {
+          osc.disconnect();
+          gain.disconnect();
+        };
+      }
     }
+    // Hammer thunk: 30ms of bandpassed noise at the attack.
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = this.getNoise();
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = "bandpass";
+    bp.frequency.value = 2500;
+    bp.Q.value = 1;
+    const ng = this.ctx.createGain();
+    ng.gain.setValueAtTime(0.12, time);
+    ng.gain.exponentialRampToValueAtTime(0.001, time + 0.03);
+    noise.connect(bp);
+    bp.connect(ng);
+    ng.connect(this.master);
+    noise.start(time);
+    noise.stop(time + 0.05);
   }
 
   /** One drum-kit hit at the given time. */

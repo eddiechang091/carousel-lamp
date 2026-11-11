@@ -129,8 +129,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [8, 43], [12, 48]],
     scale: C_MAJOR,
     tune: "Original samba-flavoured line",
-    voice: "pluck",
-    bassVoice: "pluck",
+    voice: "none",
+    bassVoice: "none",
     percussion: ["kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker"],
   },
   "st-patrick": {
@@ -264,7 +264,7 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 43], [9, 48], [17, 43]],
     scale: [7, 9, 11, 0, 2, 4, 6],
     tune: "Original harvest folk line",
-    voice: "pluck",
-    bassVoice: "pluck",
+    voice: "piano",
+    bassVoice: "piano",
   },
 };
