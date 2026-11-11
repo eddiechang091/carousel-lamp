@@ -16,6 +16,7 @@ import {
   Trash2,
   X,
   Check,
+  Pencil,
   Music4,
   VolumeX,
   Download,
@@ -43,7 +44,7 @@ import { readSavedPhotos, savePhotosLocally, type SavedPhoto } from '@/lib/photo
 import { convertHeic, isHeicFile } from '@/lib/heic';
 import { readSavedView, readMusicPref, saveMusicPref, readThemePref, saveThemePref } from '@/lib/view-storage';
 import { THEMES, normalizeThemeMode, resolveTheme, type ThemeId, type ThemeMode } from '@/lib/themes';
-import { useI18n } from '@/i18n';
+import { useI18n, type Locale } from '@/i18n';
 import { LlmUnavailableError } from '@/services/otari/llm';
 import { generateAiCaption } from '@/services/otari/caption';
 import { createAutoCaptionRunner } from '@/services/otari/auto-caption';
@@ -61,6 +62,10 @@ type Memory = {
   custom: boolean;
   empty: boolean;
   caption: string;
+  /** True when the caption was written by the AI: it is regenerated in
+      the new language when the locale changes; a hand-edited caption
+      is never overwritten. Persisted via SavedPhoto.captionAi. */
+  captionAi: boolean;
 };
 type Draft = { source: string; image: HTMLImageElement; crop: Crop };
 
@@ -107,11 +112,16 @@ export default function Home() {
       custom: false,
       empty: true,
       caption: '',
+      captionAi: false,
     })),
   );
   const [captionDraft, setCaptionDraft] = useState('');
   const [captionBusy, setCaptionBusy] = useState(false);
   const [captionFailed, setCaptionFailed] = useState(false);
+  // True while the caption input (not the text view) is open.
+  const [editingCaption, setEditingCaption] = useState(false);
+  const editingCaptionRef = useRef(false);
+  useEffect(() => { editingCaptionRef.current = editingCaption; }, [editingCaption]);
   const memoriesRef = useRef(memories);
   useEffect(() => { memoriesRef.current = memories; }, [memories]);
   const play = (kind: Parameters<ChimeAudio['play']>[0]) =>
@@ -191,17 +201,21 @@ export default function Home() {
     setSelectedModel(model);
   }
 
-  // Auto-caption: when a photo is hung, the model drafts one poetic line
-  // into the caption input. Refs keep the async callbacks current.
+  // Auto-caption: when a photo is hung, the model writes one poetic line
+  // and it is SAVED immediately — no Save tap. Refs keep the async
+  // callbacks current.
   const selectedRef = useRef(selected);
   useEffect(() => { selectedRef.current = selected; }, [selected]);
   const localeRef = useRef(locale);
   useEffect(() => { localeRef.current = locale; }, [locale]);
-  const themeIdRef = useRef(themeId);
-  useEffect(() => { themeIdRef.current = themeId; }, [themeId]);
-  // Auto-generated captions, keyed by slot, until the user saves them.
-  // The draft itself is never persisted except through the Save button.
-  const autoCaptionTextRef = useRef(new Map<number, string>());
+  // Locale each slot's latest generation was requested in. A result
+  // that arrives after the locale moved on is stale and must not be
+  // saved (it would store a caption in the wrong language).
+  const captionLocaleRef = useRef(new Map<number, Locale>());
+  // Preview each slot's latest generation was requested for. A result
+  // that arrives after the photo was removed, replaced, or re-cropped
+  // belongs to a photo that is no longer there — drop it.
+  const captionPreviewRef = useRef(new Map<number, string>());
   const generatingSlotRef = useRef<number | null>(null);
   const autoCaption = useRef(createAutoCaptionRunner({
     generate: generateAiCaption,
@@ -213,15 +227,18 @@ export default function Home() {
       }
     },
     onCaption: (slot, text) => {
-      autoCaptionTextRef.current.set(slot, text);
+      if (captionLocaleRef.current.get(slot) !== localeRef.current) return;
+      if (captionPreviewRef.current.get(slot) !== memoriesRef.current[slot]?.preview) return;
       setUsageEntries(readUsageEntries());
+      void queueCaptionSave(slot, text);
       if (slot === selectedRef.current) {
-        setCaptionDraft(text);
+        if (!editingCaptionRef.current) setCaptionDraft(text);
         setNotice(t('ai.captionReady'));
         play('select');
       }
     },
     onError: (slot, err) => {
+      if (captionLocaleRef.current.get(slot) !== localeRef.current) return;
       if (slot === selectedRef.current) {
         setCaptionFailed(true);
         setNotice(
@@ -232,6 +249,7 @@ export default function Home() {
       }
     },
     onDone: (slot) => {
+      if (captionLocaleRef.current.get(slot) !== localeRef.current) return;
       if (generatingSlotRef.current === slot) {
         generatingSlotRef.current = null;
         setCaptionBusy(false);
@@ -240,10 +258,11 @@ export default function Home() {
   }));
   // Ask the model for a caption for one freshly uploaded photo.
   function requestAutoCaption(slot: number, preview: string, hasCaption: boolean, force = false) {
+    captionLocaleRef.current.set(slot, localeRef.current);
+    captionPreviewRef.current.set(slot, preview);
     void autoCaption.current.request(slot, {
       imageDataUrl: preview,
       locale: localeRef.current,
-      themeId: themeIdRef.current,
       hasCaption,
       force,
       model: selectedModelRef.current ?? undefined,
@@ -255,11 +274,25 @@ export default function Home() {
     if (!memory || memory.empty || !memory.preview) return;
     requestAutoCaption(selectedRef.current, memory.preview, false, true);
   }
+  // Switching language regenerates every AI-written caption in the new
+  // language. Hand-edited captions are never touched. A slot being
+  // edited by hand right now is skipped — the user's edit wins.
+  const prevLocaleRef = useRef(locale);
+  useEffect(() => {
+    if (prevLocaleRef.current === locale) return;
+    prevLocaleRef.current = locale;
+    for (let slot = 0; slot < PHOTO_COUNT; slot++) {
+      const memory = memoriesRef.current[slot];
+      if (!memory || !memory.captionAi || memory.empty || !memory.preview) continue;
+      if (slot === selectedRef.current && editingCaptionRef.current) continue;
+      requestAutoCaption(slot, memory.preview, false, true);
+    }
+  }, [locale]);
   useEffect(() => {
     if (selected >= 0) {
-      // A saved caption wins; otherwise show the auto-generated draft.
-      const saved = memoriesRef.current[selected]?.caption ?? '';
-      setCaptionDraft(saved || (autoCaptionTextRef.current.get(selected) ?? ''));
+      // The saved caption is the text; the draft only exists while editing.
+      setCaptionDraft(memoriesRef.current[selected]?.caption ?? '');
+      setEditingCaption(false);
       setCaptionFailed(false);
     }
   }, [selected]);
@@ -303,7 +336,7 @@ export default function Home() {
             const source = photo.source ? URL.createObjectURL(photo.source) : '';
             if (source) urls.current.add(source);
             restored.set(photo.slot, { source, preview: photo.preview, crop: photo.crop,
-              custom: !photo.empty, empty: photo.empty, caption: photo.caption ?? '' });
+              custom: !photo.empty, empty: photo.empty, caption: photo.caption ?? '', captionAi: photo.captionAi ?? false });
           }
           await Promise.all([...restored].map(async ([slot, photo]) => {
             await carousel.setPhoto(slot, photo.empty ? null : photo.preview);
@@ -502,13 +535,13 @@ export default function Home() {
           drawCrop(canvas, image, initialCrop);
           prepared.push({ slot: slots[i], blob, memory: {
             source, preview: canvas.toDataURL('image/jpeg', 0.92), crop: { ...initialCrop }, custom: true, empty: false,
-            caption: memories[slots[i]].caption ?? '',
+            caption: memories[slots[i]].caption ?? '', captionAi: memories[slots[i]].captionAi ?? false,
           } });
         } catch (error) { URL.revokeObjectURL(source); throw error; }
       }
       setBatchProgress(t('batch.saving'));
       await commitPhotos(async () => prepared.map(({slot, memory, blob}) => ({
-        slot, source: blob, preview: memory.preview, crop: memory.crop, empty: false, caption: memory.caption,
+        slot, source: blob, preview: memory.preview, crop: memory.crop, empty: false, caption: memory.caption, captionAi: memory.captionAi,
       })));
       for (const {memory} of prepared) {
         urls.current.add(memory.source);
@@ -518,8 +551,8 @@ export default function Home() {
       for (const {slot, memory} of prepared) {
         await api.current?.setPhoto(slot, memory.preview);
         if (memory.caption) await api.current?.setCaption(slot, memory.caption);
-        // Draft a caption for each freshly hung photo (unless it already
-        // has one); the draft is saved only via the Save button.
+        // The model writes a caption for each freshly hung photo (unless
+        // it already has one); each one is auto-saved as it arrives.
         requestAutoCaption(slot, memory.preview, (memory.caption ?? '').trim() !== '');
       }
       api.current?.reset();
@@ -547,7 +580,7 @@ export default function Home() {
         const response = await fetch(draft.source);
         if (!response.ok) throw new Error(t('error.cannotReadOriginal'));
         const original = await response.blob();
-        return [{ slot: selected, source: original, preview: cropped, crop: { ...draft.crop }, empty: false, caption: memories[selected].caption }];
+        return [{ slot: selected, source: original, preview: cropped, crop: { ...draft.crop }, empty: false, caption: memories[selected].caption, captionAi: memories[selected].captionAi }];
       });
       await api.current.setPhoto(selected, cropped);
       setMemories((list) =>
@@ -560,12 +593,13 @@ export default function Home() {
                 custom: true,
                 empty: false,
                 caption: memories[selected].caption,
+                captionAi: memories[selected].captionAi,
               }
             : m,
         ),
       );
-      // A freshly hung photo gets its caption drafted by the model.
-      // The draft is editable; it is saved only when the user presses Save.
+      // A freshly hung photo gets its caption written by the model and
+      // auto-saved; the user can edit it with the pencil afterwards.
       requestAutoCaption(selected, cropped, memories[selected].caption.trim() !== '');
       play('hang');
       setNotice(t('notice.photoAttached', { number: String(selected + 1).padStart(2, '0') }));
@@ -593,7 +627,7 @@ export default function Home() {
           source = await response.blob();
         }
         return { slot: i === 0 ? from : to, source, preview: photo.preview,
-          crop: { ...photo.crop }, empty: photo.empty, caption: photo.caption };
+          crop: { ...photo.crop }, empty: photo.empty, caption: photo.caption, captionAi: photo.captionAi };
       })));
       if (api.current !== carousel) return;
       carousel.swapPhotos(from, to);
@@ -606,7 +640,7 @@ export default function Home() {
   async function remove() {
     if (selected < 0 || !api.current || pendingSave.current) return;
     try {
-      await commitPhotos(async () => [{ slot: selected, source: null, preview: '', crop: { ...initialCrop }, empty: true, caption: '' }]);
+      await commitPhotos(async () => [{ slot: selected, source: null, preview: '', crop: { ...initialCrop }, empty: true, caption: '', captionAi: false }]);
       await api.current.setPhoto(selected, null);
       await api.current.setCaption(selected, '');
     } catch (err) {
@@ -623,6 +657,7 @@ export default function Home() {
               custom: false,
               empty: true,
               caption: '',
+              captionAi: false,
             }
           : m,
       ),
@@ -630,28 +665,58 @@ export default function Home() {
     play('hang');
     setNotice(t('notice.photoRemoved'));
   }
-  async function persistCaption(next: string) {
-    if (selected < 0 || !api.current || pendingSave.current) return;
+  // Caption saves, serialized: commitPhotos throws while another save
+  // is in flight, and a batch upload can finish several generations
+  // at once. Each link waits briefly for a user-initiated save, then
+  // writes; a failure never breaks the chain.
+  const captionSaveChainRef = useRef(Promise.resolve());
+  function queueCaptionSave(slot: number, text: string) {
+    captionSaveChainRef.current = captionSaveChainRef.current
+      .catch(() => {})
+      .then(() => saveCaptionForSlot(slot, text, 'ai'));
+    return captionSaveChainRef.current;
+  }
+  async function saveCaptionForSlot(slot: number, next: string, source: 'ai' | 'user') {
+    if (slot < 0 || !api.current) return;
     const text = next.trim().slice(0, 40);
-    if (text === memories[selected].caption) return;
+    const current = memoriesRef.current[slot];
+    // Never save a caption onto an empty frame (the photo was removed
+    // while its generation was still in flight).
+    if (!current || current.empty || text === current.caption) return;
+    // A user-initiated save (hang / remove / swap) wins the store;
+    // wait for it briefly instead of colliding with it.
+    for (let i = 0; i < 20 && pendingSave.current; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    if (pendingSave.current) {
+      if (slot === selectedRef.current) setCaptionFailed(true);
+      return;
+    }
     try {
       await commitPhotos(async () => {
-        const current = memories[selected];
-        let source: Blob | null = null;
-        if (!current.empty && current.source) {
-          const response = await fetch(current.source);
+        const memory = memoriesRef.current[slot];
+        let blob: Blob | null = null;
+        if (memory && !memory.empty && memory.source) {
+          const response = await fetch(memory.source);
           if (!response.ok) throw new Error(t('error.photoReadFailed'));
-          source = await response.blob();
+          blob = await response.blob();
         }
-        return [{ slot: selected, source, preview: current.preview, crop: { ...current.crop }, empty: current.empty, caption: text }];
+        const memoryNow = memoriesRef.current[slot];
+        return [{ slot, source: blob, preview: memoryNow?.preview ?? '', crop: memoryNow ? { ...memoryNow.crop } : { ...initialCrop }, empty: memoryNow?.empty ?? true, caption: text, captionAi: source === 'ai' }];
       });
-      await api.current.setCaption(selected, text);
-      setCaptionDraft(text);
-      setMemories(list => list.map((m, i) => i === selected ? { ...m, caption: text } : m));
+      await api.current.setCaption(slot, text);
+      if (slot === selectedRef.current && !editingCaptionRef.current) setCaptionDraft(text);
+      setMemories(list => list.map((m, i) => i === slot ? { ...m, caption: text, captionAi: source === 'ai' } : m));
       play('select');
     } catch (err) {
+      if (slot === selectedRef.current) setCaptionFailed(true);
       setNotice((err as Error).message);
     }
+  }
+  async function persistCaption(next: string) {
+    if (selected < 0) return;
+    await saveCaptionForSlot(selected, next, 'user');
+    setEditingCaption(false);
   }
   async function exportPolaroid() {
     if (selected < 0) return;
@@ -760,35 +825,67 @@ export default function Home() {
           ) : (
             <>
               <div className="caption-editor">
-                <input
-                  type="text"
-                  value={captionDraft}
-                  maxLength={40}
-                  placeholder={captionBusy ? t('ai.captionGenerating') : t('label.captionPlaceholder')}
-                  aria-label={t('a11y.captionInput')}
-                  disabled={captionBusy}
-                  onChange={(e) => setCaptionDraft(e.target.value.slice(0, 40))}
-                />
-                <span className="caption-count">{captionDraft.length}/40</span>
-                <Button
-                  size="sm"
-                  className="caption-save"
-                  aria-label={t('a11y.saveCaption')}
-                  disabled={captionDraft.trim() === memories[selected].caption}
-                  onClick={() => void persistCaption(captionDraft)}
-                >
-                  <Check />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="caption-clear"
-                  aria-label={t('a11y.clearCaption')}
-                  disabled={!memories[selected].caption}
-                  onClick={() => void persistCaption('')}
-                >
-                  <X />
-                </Button>
+                {editingCaption ? (
+                  <>
+                    <input
+                      type="text"
+                      value={captionDraft}
+                      maxLength={40}
+                      placeholder={captionBusy ? t('ai.captionGenerating') : t('label.captionPlaceholder')}
+                      aria-label={t('a11y.captionInput')}
+                      disabled={captionBusy}
+                      autoFocus
+                      onChange={(e) => setCaptionDraft(e.target.value.slice(0, 40))}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setCaptionDraft(memories[selected].caption);
+                          setEditingCaption(false);
+                        } else if (e.key === 'Enter') {
+                          void persistCaption(captionDraft);
+                        }
+                      }}
+                    />
+                    <span className="caption-count">{captionDraft.length}/40</span>
+                    <Button
+                      size="sm"
+                      className="caption-save"
+                      aria-label={t('a11y.saveCaption')}
+                      disabled={captionDraft.trim() === memories[selected].caption}
+                      onClick={() => void persistCaption(captionDraft)}
+                    >
+                      <Check />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span
+                      className={`caption-text ${memories[selected].caption ? '' : 'caption-placeholder'}`}
+                      onClick={() => {
+                        if (!captionBusy) {
+                          setCaptionDraft(memories[selected].caption);
+                          setEditingCaption(true);
+                        }
+                      }}
+                    >
+                      {captionBusy
+                        ? t('ai.captionGenerating')
+                        : memories[selected].caption || t('label.captionPlaceholder')}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="caption-edit"
+                      aria-label={t('a11y.editCaption')}
+                      disabled={captionBusy}
+                      onClick={() => {
+                        setCaptionDraft(memories[selected].caption);
+                        setEditingCaption(true);
+                      }}
+                    >
+                      <Pencil />
+                    </Button>
+                  </>
+                )}
               </div>
               {captionFailed && (
                 <button

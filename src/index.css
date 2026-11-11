@@ -270,6 +270,8 @@
   width: min(92vw, 420px);
 }
 .caption-editor { display: flex; align-items: center; gap: 6px; }
+.caption-text { flex: 1; min-width: 0; height: 40px; display: flex; align-items: center; padding: 0 14px; font-size: 15px; color: #48514d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.caption-placeholder { color: #a89f8d; }
 .caption-editor input {
   flex: 1; min-width: 0; height: 40px; border-radius: 20px;
   border: 1px solid #d8d2c4; background: #fffdf7; padding: 0 14px;
@@ -375,7 +377,7 @@ button.pony-bubble { cursor: pointer; text-align: left; font-family: inherit; }
   .pony-mascot { bottom: 110px; }
   .pony-button svg { width: 60px; height: 50px; }
 }
-.caption-save, .caption-clear { flex: none; width: 40px; padding: 0; }
+.caption-save, .caption-edit { flex: none; width: 40px; padding: 0; }
 .photo-action-row { display: flex; gap: 8px; }
 .photo-action-row button { flex: 1; white-space: nowrap; }
 .photo-actions button { border-radius: 20px; font-size: 13px; height: 40px; }
@@ -383,6 +385,8 @@ button.pony-bubble { cursor: pointer; text-align: left; font-family: inherit; }
   background: #332c42f0; border-color: #ffffff22; color: #eae2ed;
 }
 .night .caption-editor input { background: #423a52; border-color: #ffffff22; color: #eae2ed; }
+.night .caption-text { color: #eae2ed; }
+.night .caption-placeholder { color: #b0a7c0; }
 .night .caption-editor input::placeholder { color: #b0a7c0; }
 .night .caption-count { color: #b7aec4; }
 
