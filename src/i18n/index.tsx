@@ -118,6 +118,7 @@ const en: Entry = {
   'pony.error': "Couldn't reach the festival storyteller — tap to try again.",
   'pony.retry': 'Try again',
   'pony.factsNote': 'Festival facts are AI-generated.',
+  'pony.factsNoteSearched': 'Fresh from a live web search via Otari.',
   'a11y.pony': 'Festival pony — tap for festival facts',
   'ai.captionUnavailable': 'AI captions are unavailable right now — check the Otari setup and try again',
   'theme.auto': 'Auto',
@@ -309,6 +310,7 @@ const fr: Entry = {
   'pony.error': 'Impossible de joindre le conteur — touche pour réessayer.',
   'pony.retry': 'Réessayer',
   'pony.factsNote': 'Les faits festifs sont générés par IA.',
+  'pony.factsNoteSearched': 'Fraîchement trouvé sur le web via Otari.',
   'a11y.pony': 'Poney du festival — touche pour des faits festifs',
   'ai.captionUnavailable':
     'Les légendes IA sont indisponibles pour le moment — vérifiez la configuration Otari puis réessayez',
@@ -498,6 +500,7 @@ const es: Entry = {
   'pony.error': 'No se pudo contactar al narrador: toca para reintentarlo.',
   'pony.retry': 'Reintentar',
   'pony.factsNote': 'Los datos del festival son generados por IA.',
+  'pony.factsNoteSearched': 'Recién buscado en la web con Otari.',
   'a11y.pony': 'Poni del festival: toca para datos del festival',
   'ai.captionUnavailable':
     'Las frases IA no están disponibles ahora mismo — revisa la configuración de Otari e inténtalo de nuevo',
@@ -667,6 +670,7 @@ const zh: Entry = {
   'pony.error': '没能联系上节日讲故事的人——点一下再试一次。',
   'pony.retry': '重试',
   'pony.factsNote': '节日小知识由 AI 生成。',
+  'pony.factsNoteSearched': '来自 Otari 实时联网搜索。',
   'a11y.pony': '节日小马——点我听节日小知识',
   'ai.captionUnavailable': 'AI 短句暂时不可用，请检查 Otari 配置后再试',
   'theme.auto': '自动',

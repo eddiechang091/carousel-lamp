@@ -18,7 +18,7 @@ import {
 // activity re-arms the idle timer.
 type Bubble =
   | { kind: "nudge"; text: string }
-  | { kind: "facts"; text: string }
+  | { kind: "facts"; text: string; searched: boolean }
   | { kind: "error"; text: string };
 
 type Props = {
@@ -114,12 +114,12 @@ export default function PonyMascot({ themeId, model, editorOpen }: Props) {
     setBubble(null);
     setLoading(true);
     try {
-      const text = await askFestivalFacts({
+      const { facts, searched } = await askFestivalFacts({
         themeId: themeIdRef.current,
         locale: localeRef.current,
         model: modelRef.current ?? undefined,
       });
-      setBubble({ kind: "facts", text });
+      setBubble({ kind: "facts", text: facts, searched });
     } catch {
       setBubble({ kind: "error", text: t("pony.error") });
     } finally {
@@ -142,7 +142,9 @@ export default function PonyMascot({ themeId, model, editorOpen }: Props) {
       {!loading && bubble?.kind === "facts" && (
         <div className="pony-bubble" role="status">
           {bubble.text}
-          <span className="pony-bubble-note">{t("pony.factsNote")}</span>
+          <span className="pony-bubble-note">
+            {t(bubble.searched ? "pony.factsNoteSearched" : "pony.factsNote")}
+          </span>
         </div>
       )}
       {!loading && bubble?.kind === "error" && (
