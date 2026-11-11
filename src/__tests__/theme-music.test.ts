@@ -67,11 +67,17 @@ describe("THEME_MUSIC", () => {
   });
 
   it("every theme names a real instrument voice for melody and bass", () => {
-    const voices = new Set(["musicBox", "pluck", "flute", "bowed", "reed", "piano"]);
+    const voices = new Set(["musicBox", "pluck", "flute", "bowed", "reed", "piano", "none"]);
     for (const [id, def] of Object.entries(THEME_MUSIC)) {
       expect(voices.has(def.voice), `${id}: unknown voice ${def.voice}`).toBe(true);
       expect(voices.has(def.bassVoice), `${id}: unknown bass voice ${def.bassVoice}`).toBe(true);
     }
+  });
+
+  it("carnival is drums-only: no pitched voice, samba pattern kept", () => {
+    expect(THEME_MUSIC.carnival.voice).toBe("none");
+    expect(THEME_MUSIC.carnival.bassVoice).toBe("none");
+    expect(THEME_MUSIC.carnival.percussion?.some(Boolean)).toBe(true);
   });
 
   it("Chinese festivals play Chinese instruments, Western ones Western", () => {
@@ -80,6 +86,7 @@ describe("THEME_MUSIC", () => {
     expect(THEME_MUSIC["mid-autumn"].bassVoice).toBe("pluck"); // guzheng
     expect(THEME_MUSIC["dragon-boat"].voice).toBe("pluck"); // guzheng
     expect(THEME_MUSIC.christmas.voice).toBe("piano");
+    expect(THEME_MUSIC.thanksgiving.voice).toBe("piano");
     expect(THEME_MUSIC["st-patrick"].voice).toBe("bowed"); // fiddle
     expect(THEME_MUSIC.default.voice).toBe("musicBox"); // classic tine kept
   });

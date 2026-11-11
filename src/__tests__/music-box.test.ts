@@ -58,6 +58,12 @@ class MockBiquadFilter {
   type = "";
   frequency = { value: 0 };
   Q = { value: 0 };
+  gain = {
+    value: 0,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    exponentialRampToValueAtTime: vi.fn(),
+  };
   connect = vi.fn().mockReturnThis();
   disconnect = vi.fn();
 }
@@ -180,7 +186,8 @@ describe("MusicBoxAudio autoplay", () => {
       .map((r) => (r.value as MockOscillator).frequency.value);
     expect(freqs.length).toBeGreaterThan(0);
     // First Christmas note is E4 (329.63 Hz) — the Jingle Bells opening.
-    expect(freqs[0]).toBeCloseTo(329.63, 1);
+    // The piano's fundamental is a detuned pair, so allow ~0.5 Hz.
+    expect(Math.abs(freqs[0] - 329.63)).toBeLessThan(0.5);
     box.stop();
   });
 
@@ -195,7 +202,8 @@ describe("MusicBoxAudio autoplay", () => {
       (r) => r.value as MockOscillator,
     );
     expect(oscillators.length).toBeGreaterThan(0);
-    expect(oscillators[0].frequency.value).toBeCloseTo(329.63, 1);
+    // The piano's fundamental is a detuned pair around E4 (329.63 Hz).
+    expect(Math.abs(oscillators[0].frequency.value - 329.63)).toBeLessThan(0.5);
     box.stop();
   });
 
@@ -272,6 +280,54 @@ describe("MusicBoxAudio autoplay", () => {
       (r.value as MockOscillator).frequency.exponentialRampToValueAtTime.mock.calls.length > 0,
     ).length;
     expect(sources + ramps).toBeGreaterThan(0);
+    box.stop();
+  });
+
+  it("setTheme to carnival is drums-only: no melody/bass oscillators", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    const playedBefore = ctx.createOscillator.mock.results.length;
+    box.setTheme("carnival");
+    for (let i = 0; i < 6; i++) {
+      ctx.currentTime += 0.3;
+      vi.advanceTimersByTime(100);
+    }
+    const after = ctx.createOscillator.mock.results
+      .slice(playedBefore)
+      .map((r) => r.value as MockOscillator);
+    // Kick/drum set their pitch with setValueAtTime, so the mock's
+    // frequency.value stays 0; a melody or bass note would set it to a
+    // real pitch. Shaker hits are buffer sources.
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.every((o) => o.frequency.value === 0)).toBe(true);
+    expect(ctx.createBufferSource.mock.calls.length).toBeGreaterThan(0);
+    box.stop();
+  });
+
+  it("setTheme to christmas (piano) adds a hammer-noise burst", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    const buffersBefore = ctx.createBufferSource.mock.calls.length;
+    box.setTheme("christmas");
+    ctx.currentTime = 100.6;
+    vi.advanceTimersByTime(100);
+    expect(ctx.createBufferSource.mock.calls.length).toBeGreaterThan(buffersBefore);
+    box.stop();
+  });
+
+  it("setTheme to valentine (violin) builds a formant peak", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    box.setTheme("valentine");
+    ctx.currentTime = 100.6;
+    vi.advanceTimersByTime(100);
+    const filterTypes = ctx.createBiquadFilter.mock.results.map(
+      (r) => (r.value as MockBiquadFilter).type,
+    );
+    expect(filterTypes).toContain("peaking");
     box.stop();
   });
 
