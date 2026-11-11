@@ -134,6 +134,7 @@ describe("api/llm proxy", () => {
       text: "Golden hour glow",
       model: "acme/vision-1",
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
     });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -165,6 +166,7 @@ describe("api/llm proxy", () => {
       text: "Moonlit spin",
       model: "other/vision-2",
       usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const first = JSON.parse(fetchMock.mock.calls[0][1].body as string) as { model: string };
@@ -225,7 +227,7 @@ describe("api/llm proxy", () => {
     const res = mockRes();
     await handler({ method: "POST", body: { messages } }, res);
     expect(res.statusCode).toBe(200);
-    expect(res.payload).toEqual({ text: "hi", model: "acme/vision-1", usage: null });
+    expect(res.payload).toEqual({ text: "hi", model: "acme/vision-1", usage: null, searched: false });
   });
 
   it("honors OTARI_BASE_URL (EU endpoint)", async () => {
@@ -236,5 +238,90 @@ describe("api/llm proxy", () => {
     expect(res.statusCode).toBe(200);
     const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("https://eu.api.otari.ai/api/v1/chat/completions");
+  });
+
+  it("search: true sends otari_web_search and reports searched: true", async () => {
+    fetchMock.mockResolvedValue(okChoice("Fresh facts"));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages, search: true } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({
+      text: "Fresh facts",
+      model: "acme/vision-1",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: true,
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      tools?: { type: string }[];
+    };
+    expect(body.tools).toEqual([{ type: "otari_web_search" }]);
+  });
+
+  it("search defaults off — no tools field is sent without search: true", async () => {
+    fetchMock.mockResolvedValue(okChoice("hi"));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages, search: "yes" } }, res);
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      tools?: unknown;
+    };
+    expect(body.tools).toBeUndefined();
+    expect(res.payload).toEqual({
+      text: "hi",
+      model: "acme/vision-1",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
+    });
+  });
+
+  it("retries the same model without the tool when the search call fails", async () => {
+    fetchMock
+      .mockResolvedValueOnce(failWith(400))
+      .mockResolvedValueOnce(okChoice("Model knowledge only"));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages, search: true } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({
+      text: "Model knowledge only",
+      model: "acme/vision-1",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const first = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      tools?: { type: string }[];
+    };
+    const second = JSON.parse(fetchMock.mock.calls[1][1].body as string) as {
+      model: string;
+      tools?: unknown;
+    };
+    expect(first.tools).toEqual([{ type: "otari_web_search" }]);
+    expect(second.model).toBe("acme/vision-1");
+    expect(second.tools).toBeUndefined();
+  });
+
+  it("search failure falls through to the fallback model without tools", async () => {
+    vi.stubEnv("OTARI_FALLBACK_MODEL", "other/vision-2");
+    fetchMock
+      .mockResolvedValueOnce(failWith(400))
+      .mockResolvedValueOnce(failWith(500))
+      .mockResolvedValueOnce(okChoice("Fallback facts", undefined, "other/vision-2"));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages, search: true } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const third = JSON.parse(fetchMock.mock.calls[2][1].body as string) as {
+      model: string;
+      tools?: unknown;
+    };
+    expect(third.model).toBe("other/vision-2");
+    expect(third.tools).toBeUndefined();
+    expect(res.payload).toEqual({
+      text: "Fallback facts",
+      model: "other/vision-2",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
+    });
   });
 });
