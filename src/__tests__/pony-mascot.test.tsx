@@ -52,6 +52,20 @@ describe("PonyMascot", () => {
     expect(request.model).toBeUndefined(); // server default when no pick
   });
 
+  it("shows the live-search note when the facts came from a web search", async () => {
+    completeMock.mockResolvedValueOnce({
+      text: "Diwali 2026 lit up Jaipur with a record drone show.",
+      raw: {},
+      searched: true,
+    });
+    renderPony({ themeId: "diwali" });
+    fireEvent.click(screen.getByRole("button", { name: /Festival pony/ }));
+    await screen.findByText(/record drone show/);
+    expect(screen.getByText("Fresh from a live web search via Otari.")).toBeInTheDocument();
+    const request = completeMock.mock.calls[0][0] as { search?: boolean };
+    expect(request.search).toBe(true);
+  });
+
   it("sends the dashboard's picked model with the facts request", async () => {
     renderPony({ model: "moonshotai/kimi-k3.1-pro" });
     fireEvent.click(screen.getByRole("button", { name: /Festival pony/ }));
