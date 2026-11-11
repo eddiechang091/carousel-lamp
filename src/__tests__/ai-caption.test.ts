@@ -20,6 +20,14 @@ describe("ai caption", () => {
     expect(cleanCaption("")).toBe("");
   });
 
+  it("cuts an over-long caption at a word boundary, never mid-word", () => {
+    expect(cleanCaption("Golden diamonds bloom above painted flowers.")).toBe(
+      "Golden diamonds bloom above painted",
+    );
+    // CJK has no spaces: cut after a whole character, still capped.
+    expect(cleanCaption("金".repeat(50))).toHaveLength(40);
+  });
+
   it("sends the photo to the model as an image block in the user message", () => {
     const dataUrl = "data:image/jpeg;base64,/9j/AAAA";
     const messages = buildCaptionMessages({
@@ -31,7 +39,7 @@ describe("ai caption", () => {
     expect(system.role).toBe("system");
     expect(typeof system.content).toBe("string");
     expect(system.content as string).toContain("Chinese");
-    expect(system.content as string).toContain("40");
+    expect(system.content as string).toContain("30");
     expect(user.role).toBe("user");
     expect(Array.isArray(user.content)).toBe(true);
     const blocks = user.content as Array<{ type: string; [key: string]: unknown }>;
