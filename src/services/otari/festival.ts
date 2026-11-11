@@ -5,11 +5,27 @@ import type { ThemeId } from "@/lib/themes";
 import { themeDisplayName } from "./caption";
 
 // Festival facts for the pony mascot: text-only chat completions via
-// the same /api/llm proxy. The model answers from its own knowledge —
-// no live web search is claimed anywhere (see README). The reply is
-// kept short enough to read in a chat bubble.
+// the same /api/llm proxy, with Otari's built-in web search switched
+// on (search: true). The model searches the web for the latest about
+// the festival, so each click can surface fresh facts instead of the
+// same background every time. The reply is kept short enough to read
+// in a chat bubble.
 
 export const MAX_FACTS_CHARS = 420;
+
+// One angle per click, picked at random, so two taps in a row ask for
+// different kinds of fresh facts instead of repeating the same answer.
+export const FESTIVAL_FACT_ANGLES = [
+  "this year's celebrations and latest news",
+  "food and drink traditions",
+  "a surprising historical fact",
+  "how different countries celebrate it",
+  "a recent record, event, or viral moment",
+] as const;
+
+export function pickFactAngle(random: () => number = Math.random): string {
+  return FESTIVAL_FACT_ANGLES[Math.floor(random() * FESTIVAL_FACT_ANGLES.length)];
+}
 
 // Nudge cadence (Lucky Cat pattern): first nudge after 60s idle, then
 // at most every 180s, max 3 nudges per session, only when no
@@ -32,6 +48,10 @@ export function nudgeAllowed(
 export function buildFestivalMessages(opts: {
   themeId: ThemeId;
   locale: Locale;
+  /** Rotating angle for this click; defaults to a random pick. */
+  angle?: string;
+  /** Today's date (YYYY-MM-DD); defaults to the local date. */
+  today?: string;
 }): LlmMessage[] {
   const language =
     { en: "English", fr: "French", es: "Spanish", zh: "Chinese" }[opts.locale] ??
@@ -41,14 +61,16 @@ export function buildFestivalMessages(opts: {
     opts.themeId === "default"
       ? "carousel lamps"
       : `${theme} festival`;
+  const angle = opts.angle ?? pickFactAngle();
+  const today = opts.today ?? new Date().toLocaleDateString("en-CA");
   return [
     {
       role: "system",
-      content: `You are a cheerful festival guide for a carousel lamp. Reply with one line of background plus 2-3 short fun facts about ${topic}, at most ${MAX_FACTS_CHARS} characters in total, in ${language}. Plain sentences only, no markdown, no greeting, no second paragraph.`,
+      content: `You are a cheerful festival guide for a carousel lamp. Today is ${today}. Search the web for the latest about ${topic} and reply with one line of background plus 2-3 short fun facts, focusing on ${angle}, at most ${MAX_FACTS_CHARS} characters in total, in ${language}. Prefer fresh, current facts over well-known ones, so each answer feels new. Plain sentences only, no markdown, no greeting, no second paragraph.`,
     },
     {
       role: "user",
-      content: `Tell me about ${topic} for the carousel lamp.`,
+      content: `Tell me the latest about ${topic} for the carousel lamp, focusing on ${angle}.`,
     },
   ];
 }
@@ -65,7 +87,7 @@ export async function askFestivalFacts(opts: {
   locale: Locale;
   /** One model from the server allowlist; omit for the server default. */
   model?: string;
-}): Promise<string> {
+}): Promise<{ facts: string; searched: boolean }> {
   const llm = await getLlmService();
   if (!llm.available) {
     throw new LlmUnavailableError();
@@ -75,10 +97,11 @@ export async function askFestivalFacts(opts: {
     maxTokens: 200,
     temperature: 0.8,
     model: opts.model,
+    search: true,
   });
   const facts = cleanFacts(result.text);
   if (!facts) {
     throw new Error("Festival facts came back empty");
   }
-  return facts;
+  return { facts, searched: result.searched ?? false };
 }

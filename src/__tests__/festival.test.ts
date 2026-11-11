@@ -4,6 +4,8 @@ import {
   cleanFacts,
   askFestivalFacts,
   nudgeAllowed,
+  pickFactAngle,
+  FESTIVAL_FACT_ANGLES,
   MAX_FACTS_CHARS,
   NUDGE_INTERVAL_MS,
   MAX_NUDGES_PER_SESSION,
@@ -22,6 +24,30 @@ describe("festival facts prompt", () => {
     const messages = buildFestivalMessages({ themeId: "default", locale: "zh" });
     expect(messages[0].content as string).toContain("carousel lamps");
     expect(messages[0].content as string).toContain("Chinese");
+  });
+
+  it("asks for the latest, with today's date and a rotating angle", () => {
+    const messages = buildFestivalMessages({
+      themeId: "dragon-boat",
+      locale: "en",
+      angle: "food and drink traditions",
+      today: "2026-11-11",
+    });
+    expect(messages).toHaveLength(2);
+    expect(messages[0].content as string).toContain("Dragon Boat Festival");
+    expect(messages[0].content as string).toContain("English");
+    expect(messages[0].content as string).toContain("2026-11-11");
+    expect(messages[0].content as string).toContain("food and drink traditions");
+    expect(messages[0].content as string).toContain("Search the web");
+    expect(messages[0].content as string).toContain("fresh, current facts");
+    expect(messages[1].content).toContain("food and drink traditions");
+  });
+
+  it("picks a random angle from the list", () => {
+    for (const r of [0, 0.25, 0.5, 0.75, 0.99]) {
+      expect(FESTIVAL_FACT_ANGLES).toContain(pickFactAngle(() => r));
+    }
+    expect(FESTIVAL_FACT_ANGLES.length).toBeGreaterThanOrEqual(3);
   });
 
   it("is text-only — no image blocks", () => {
@@ -62,24 +88,30 @@ describe("askFestivalFacts", () => {
     vi.unstubAllGlobals();
   });
 
-  it("posts text-only messages and returns the cleaned facts", async () => {
+  it("posts text-only messages with search on and returns the cleaned facts", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ text: "  Dragon Boat Festival honours Qu Yuan.  " }),
+      json: async () => ({
+        text: "  Dragon Boat Festival honours Qu Yuan.  ",
+        searched: true,
+      }),
     });
-    const facts = await askFestivalFacts({
+    const { facts, searched } = await askFestivalFacts({
       themeId: "dragon-boat",
       locale: "en",
       model: "other/vision-2",
     });
     expect(facts).toBe("Dragon Boat Festival honours Qu Yuan.");
+    expect(searched).toBe(true);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
       messages: { content: unknown }[];
       model?: string;
+      search?: boolean;
     };
     expect(body.messages).toHaveLength(2);
     expect(body.model).toBe("other/vision-2");
+    expect(body.search).toBe(true);
     for (const message of body.messages) {
       expect(typeof message.content).toBe("string");
     }
