@@ -283,6 +283,25 @@ describe("MusicBoxAudio autoplay", () => {
     box.stop();
   });
 
+  it("setTheme to spring-festival plays the gong (98 Hz fundamental)", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    box.setTheme("spring-festival");
+    for (let i = 0; i < 12; i++) {
+      ctx.currentTime += 0.3;
+      vi.advanceTimersByTime(100);
+    }
+    const freqs = ctx.createOscillator.mock.results.map(
+      (r) => (r.value as MockOscillator).frequency.value,
+    );
+    // Gong partials are 98 x [1, 2.76, 5.4]; the fundamental proves the
+    // festive drum pattern runs. (Headless runs sample it unreliably, so
+    // the gong is pinned here instead of in the browser script.)
+    expect(freqs).toContain(98);
+    box.stop();
+  });
+
   it("setTheme to carnival is drums-only: no melody/bass oscillators", () => {
     const box = new MusicBoxAudio();
     box.start();
