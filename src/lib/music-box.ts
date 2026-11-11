@@ -112,11 +112,17 @@ export class MusicBoxAudio {
       this.noteIndex = (this.noteIndex + 1) % melody.length;
     }
     if (percussion) {
-      if (this.percNextTime < a.currentTime - 0.25) {
-        this.percNextTime = a.currentTime + 0.05;
-        this.percStep = 0; // re-align the pattern to the bar start
-      }
       const stepSeconds = beat / 2;
+      if (this.percNextTime < a.currentTime - 0.25) {
+        // Skip missed steps but keep the pattern in phase: advance the
+        // step counter by the number of skipped steps instead of restarting
+        // at the gong, or a background tab would play gong, gong, gong.
+        const skipped = Math.floor(
+          (a.currentTime - this.percNextTime) / stepSeconds,
+        );
+        this.percStep += skipped;
+        this.percNextTime += skipped * stepSeconds;
+      }
       while (this.percNextTime < a.currentTime + 0.12) {
         const hit = percussion[this.percStep % percussion.length];
         if (hit) this.voices.playDrum(hit, this.percNextTime);

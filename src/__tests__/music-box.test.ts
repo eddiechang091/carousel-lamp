@@ -243,6 +243,21 @@ describe("MusicBoxAudio autoplay", () => {
     box.stop();
   });
 
+  it("percussion pattern keeps its phase after a stall (shaker still lands)", () => {
+    const box = new MusicBoxAudio();
+    box.start();
+    const ctx = MockAudioContext.instances[0];
+    box.setTheme("spring-festival");
+    // Spring Festival step is 0.21s (beat 0.42 / 2). A 3.9s stall skips
+    // floor(3.9 / 0.21) = 18 steps; step 18 % 16 = 2 is a shaker, which is
+    // the only drum kind that creates a buffer source — the reed melody
+    // and bass use oscillators, so any buffer here is the shaker.
+    ctx.currentTime = 104;
+    vi.advanceTimersByTime(100);
+    expect(ctx.createBufferSource.mock.calls.length).toBeGreaterThan(0);
+    box.stop();
+  });
+
   it("setTheme to carnival schedules drum hits on the percussion clock", () => {
     const box = new MusicBoxAudio();
     box.start();
