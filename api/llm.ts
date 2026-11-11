@@ -181,6 +181,7 @@ async function callOtari(
   messages: OutgoingMessage[],
   maxTokens: number,
   temperature: number,
+  search: boolean,
 ): Promise<{
   ok: boolean;
   status: number;
@@ -196,11 +197,17 @@ async function callOtari(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
+      // Web search is Otari's own built-in tool (docs/tools.md):
+      // `otari_web_search` in the tools array makes the gateway run a
+      // live search itself and answer from the results, so any model
+      // can quote fresh facts. The gateway runs the tool loop
+      // server-side — the client only ever sees the final text.
       body: JSON.stringify({
         model,
         messages,
         max_tokens: maxTokens,
         temperature,
+        ...(search ? { tools: [{ type: "otari_web_search" }] } : {}),
       }),
       signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
     });
@@ -256,6 +263,10 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
     typeof record.temperature === "number"
       ? Math.min(Math.max(record.temperature, 0), 2)
       : 0.9;
+  // `search: true` asks Otari to run its built-in web search tool for
+  // this call (festival facts). Anything else is treated as false —
+  // the default for captions and every other caller.
+  const search = record.search === true;
 
   const apiKey = process.env.OTARI_API_KEY;
   if (!apiKey) {
@@ -289,28 +300,43 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
 
   // Log only the outcome and the model used — never the key, never the
   // request body (it carries image data URLs).
-  const primary = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature);
+  const primary = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature, search);
   if (primary.ok) {
-    console.log(`[api/llm] ok model=${primary.model} tokens=${primary.usage?.total_tokens ?? "?"}`);
-    res.status(200).json({ text: primary.text, model: primary.model, usage: primary.usage });
+    console.log(`[api/llm] ok model=${primary.model} search=${search} tokens=${primary.usage?.total_tokens ?? "?"}`);
+    res.status(200).json({ text: primary.text, model: primary.model, usage: primary.usage, searched: search });
     return;
   }
+  // A search-enabled call can fail when the gateway has no search
+  // backend behind it (hosted vs self-hosted). That must not take the
+  // feature down: retry the same model without the tool, i.e. plain
+  // model knowledge, before trying the other model.
+  let lastFailure = primary;
+  if (search) {
+    console.log(`[api/llm] search call failed status=${primary.status} model=${model}, retrying without search`);
+    const plain = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature, false);
+    if (plain.ok) {
+      console.log(`[api/llm] ok model=${plain.model} search=false (search fallback) tokens=${plain.usage?.total_tokens ?? "?"}`);
+      res.status(200).json({ text: plain.text, model: plain.model, usage: plain.usage, searched: false });
+      return;
+    }
+    lastFailure = plain;
+  }
   if (fallbackModel && fallbackModel !== model) {
-    console.log(`[api/llm] primary failed status=${primary.status} model=${model}, retrying fallback model=${fallbackModel}`);
-    const fallback = await callOtari(baseUrl, apiKey, fallbackModel, messages, maxTokens, temperature);
+    console.log(`[api/llm] primary failed status=${lastFailure.status} model=${model}, retrying fallback model=${fallbackModel}`);
+    const fallback = await callOtari(baseUrl, apiKey, fallbackModel, messages, maxTokens, temperature, false);
     if (fallback.ok) {
       console.log(`[api/llm] ok model=${fallback.model} tokens=${fallback.usage?.total_tokens ?? "?"} (fallback)`);
-      res.status(200).json({ text: fallback.text, model: fallback.model, usage: fallback.usage });
+      res.status(200).json({ text: fallback.text, model: fallback.model, usage: fallback.usage, searched: false });
       return;
     }
     console.log(`[api/llm] fallback failed status=${fallback.status} model=${fallbackModel}`);
-    jsonError(res, 502, upstreamErrorMessage(fallback.status || primary.status));
+    jsonError(res, 502, upstreamErrorMessage(fallback.status || lastFailure.status));
     return;
   }
-  if (primary.status === 0) {
+  if (lastFailure.status === 0) {
     jsonError(res, 502, "Could not reach Otari — check the network and OTARI_BASE_URL, then try again.");
     return;
   }
-  console.log(`[api/llm] failed status=${primary.status} model=${model}`);
-  jsonError(res, 502, upstreamErrorMessage(primary.status));
+  console.log(`[api/llm] failed status=${lastFailure.status} model=${model}`);
+  jsonError(res, 502, upstreamErrorMessage(lastFailure.status));
 }
