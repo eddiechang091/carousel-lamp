@@ -7,6 +7,8 @@
 // and rhythm chosen for the festival. `scale` lists the allowed pitch
 // classes (0 = C) so tests can check every note stays in key; the two
 // chromatic themes (April Fools', Halloween) list all twelve.
+
+import type { DrumKind, VoiceId } from "./instruments";
 import type { ThemeId } from "./themes";
 
 export type ThemeMusicDef = {
@@ -20,6 +22,14 @@ export type ThemeMusicDef = {
   scale: number[];
   /** Where the tune comes from (public-domain quote or original line). */
   tune: string;
+  /** Melody instrument voice. */
+  voice: VoiceId;
+  /** Bass accompaniment voice. */
+  bassVoice: VoiceId;
+  /** Karplus-Strong damping for the pluck voice (per-theme brightness). */
+  pluckDamp?: number;
+  /** Drum pattern, 16 eighth-note steps over two bars; null = rest. */
+  percussion?: (DrumKind | null)[];
 };
 
 /** Equal-tempered frequency for a MIDI note number (A4 = 69 = 440 Hz). */
@@ -44,6 +54,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 45], [4, 38], [8, 45], [12, 38]],
     scale: [0, 2, 4, 6, 7, 9, 11],
     tune: "Greensleeves (traditional, public domain)",
+    voice: "musicBox",
+    bassVoice: "musicBox",
   },
   christmas: {
     beat: 0.42,
@@ -58,6 +70,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [5, 43], [11, 41], [16, 43], [20, 43], [24, 48]],
     scale: C_MAJOR,
     tune: "Jingle Bells chorus (public domain, 1857)",
+    voice: "piano",
+    bassVoice: "piano",
   },
   "new-year": {
     beat: 0.55,
@@ -70,6 +84,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [7, 41], [12, 48], [16, 43]],
     scale: C_MAJOR,
     tune: "Auld Lang Syne-inspired (public domain, 1788)",
+    voice: "piano",
+    bassVoice: "piano",
   },
   valentine: {
     beat: 0.6,
@@ -82,6 +98,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [4, 43], [8, 41], [12, 48]],
     scale: C_MAJOR,
     tune: "Original slow waltz",
+    voice: "bowed",
+    bassVoice: "piano",
   },
   "spring-festival": {
     beat: 0.42,
@@ -95,6 +113,9 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [8, 43], [13, 48], [17, 43]],
     scale: PENTATONIC_C,
     tune: "Original pentatonic line",
+    voice: "reed",
+    bassVoice: "reed",
+    percussion: ["gong", null, "shaker", null, "drum", null, "shaker", null, "drum", null, "shaker", null, "drum", null, "shaker", null],
   },
   carnival: {
     beat: 0.34,
@@ -108,6 +129,9 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [8, 43], [12, 48]],
     scale: C_MAJOR,
     tune: "Original samba-flavoured line",
+    voice: "pluck",
+    bassVoice: "pluck",
+    percussion: ["kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker", "kick", "shaker", "drum", "shaker"],
   },
   "st-patrick": {
     beat: 0.32,
@@ -120,6 +144,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 38], [8, 43]],
     scale: [2, 4, 6, 7, 9, 11, 1],
     tune: "Original Irish jig",
+    voice: "bowed",
+    bassVoice: "pluck",
   },
   "april-fools": {
     beat: 0.38,
@@ -133,6 +159,9 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [8, 43]],
     scale: CHROMATIC,
     tune: "Original chromatic prank",
+    voice: "pluck",
+    bassVoice: "pluck",
+    pluckDamp: 0.994,
   },
   easter: {
     beat: 0.5,
@@ -146,6 +175,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 43], [8, 48], [14, 43]],
     scale: [7, 9, 11, 0, 2, 4, 6],
     tune: "Original spring line",
+    voice: "flute",
+    bassVoice: "pluck",
   },
   "mothers-day": {
     beat: 0.6,
@@ -159,6 +190,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 41], [8, 48], [16, 41]],
     scale: [5, 7, 9, 10, 0, 2, 4],
     tune: "Original warm line",
+    voice: "bowed",
+    bassVoice: "piano",
   },
   "dragon-boat": {
     beat: 0.36,
@@ -171,6 +204,9 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [4, 48], [8, 43], [12, 48]],
     scale: PENTATONIC_C,
     tune: "Original driving pentatonic line",
+    voice: "pluck",
+    bassVoice: "pluck",
+    percussion: ["gong", null, "drum", null, "drum", null, "drum", null, "drum", null, "drum", null, "drum", null, "drum", null],
   },
   "mid-autumn": {
     beat: 0.62,
@@ -183,6 +219,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 45], [6, 40], [11, 45]],
     scale: [9, 0, 2, 4, 7],
     tune: "Original moonlit line",
+    voice: "flute",
+    bassVoice: "pluck",
   },
   halloween: {
     beat: 0.48,
@@ -195,6 +233,8 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 45], [6, 40], [11, 45]],
     scale: CHROMATIC,
     tune: "Original spooky line",
+    voice: "bowed",
+    bassVoice: "bowed",
   },
   diwali: {
     beat: 0.44,
@@ -208,6 +248,9 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 48], [10, 48], [15, 43]],
     scale: [0, 1, 4, 5, 7, 8, 11],
     tune: "Original raga-flavoured line",
+    voice: "pluck",
+    bassVoice: "pluck",
+    pluckDamp: 0.997,
   },
   thanksgiving: {
     beat: 0.52,
@@ -221,5 +264,7 @@ export const THEME_MUSIC: Record<ThemeId, ThemeMusicDef> = {
     bass: [[0, 43], [9, 48], [17, 43]],
     scale: [7, 9, 11, 0, 2, 4, 6],
     tune: "Original harvest folk line",
+    voice: "pluck",
+    bassVoice: "pluck",
   },
 };

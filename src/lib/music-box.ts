@@ -1,32 +1,45 @@
-// Retro music-box background melody, synthesised entirely with the Web Audio
-// API so no external audio files need to be loaded. Each festival theme has
-// its own tune (see theme-music.ts — Greensleeves for the classic lamp,
-// Jingle Bells for Christmas, and so on), rendered with a bright, ringing
-// tine timbre.
-import { THEME_MUSIC, midiToFreq } from "./theme-music";
+// Background melody for the carousel lamp, synthesised entirely with the
+// Web Audio API so no external audio files need to be loaded. Each festival
+// theme has its own tune (see theme-music.ts) played in its own instrument
+// voice (see instruments.ts): suona + festive drums for Spring Festival,
+// guzheng plucks + dizi flute for Mid-Autumn, piano for Christmas and New
+// Year, fiddle for St. Patrick's, samba drums for Carnival — and the
+// original music-box tine for the classic lamp.
+
+import { InstrumentVoices } from "./instruments";
+import { midiToFreq, THEME_MUSIC } from "./theme-music";
 import type { ThemeId } from "./themes";
 
 export class MusicBoxAudio {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
+  private voices: InstrumentVoices | null = null;
   private timer: number | null = null;
   private nextNoteTime = 0;
   private noteIndex = 0;
+  private prevMelodyFreq: number | undefined = undefined;
   private theme: ThemeId = "default";
   private bassByIndex = new Map<number, number>(THEME_MUSIC.default.bass);
+  // Drum pattern clock: 16 eighth-note steps over two bars, in step with
+  // the melody's beat. Only themes with a percussion pattern use it.
+  private percNextTime = 0;
+  private percStep = 0;
 
   private get def() {
     return THEME_MUSIC[this.theme];
   }
 
-  /** Switch tune when the carousel theme changes; restarts the loop cleanly. */
+  /** Switch tune (and instrument voice) when the carousel theme changes. */
   setTheme(themeId: ThemeId) {
     if (themeId === this.theme) return;
     this.theme = themeId;
     this.bassByIndex = new Map<number, number>(THEME_MUSIC[themeId].bass);
     this.noteIndex = 0;
+    this.prevMelodyFreq = undefined;
+    this.percStep = 0;
     if (this.timer !== null && this.context) {
       this.nextNoteTime = this.context.currentTime + 0.1;
+      this.percNextTime = this.context.currentTime + 0.1;
     }
   }
 
@@ -37,6 +50,7 @@ export class MusicBoxAudio {
       this.master.gain.value = 0.13;
       this.master.connect(this.context.destination);
     }
+    this.voices ??= new InstrumentVoices(this.context, this.master);
   }
 
   start() {
@@ -51,7 +65,10 @@ export class MusicBoxAudio {
       void a.resume();
       if (this.timer !== null) return; // already playing
       this.noteIndex = 0;
+      this.prevMelodyFreq = undefined;
+      this.percStep = 0;
       this.nextNoteTime = a.currentTime + 0.1;
+      this.percNextTime = a.currentTime + 0.1;
       this.timer = window.setInterval(() => this.schedule(), 25);
     } catch {
       /* Background music is a nice-to-have; ignore when audio is unavailable. */
@@ -67,41 +84,45 @@ export class MusicBoxAudio {
 
   private schedule() {
     const a = this.context;
-    if (!a || this.timer === null) return;
-    const { melody, beat } = this.def;
+    if (!a || this.timer === null || !this.voices) return;
+    const { melody, beat, voice, bassVoice, pluckDamp, percussion } = this.def;
+    // If the interval was starved (background tab, slow device), the note
+    // clock falls behind real time. Skip the missed notes instead of
+    // bursting them all at once as a chord.
+    if (this.nextNoteTime < a.currentTime - 0.25) {
+      this.nextNoteTime = a.currentTime + 0.05;
+    }
     while (this.nextNoteTime < a.currentTime + 0.12) {
       const [note, beats] = melody[this.noteIndex];
-      this.playTone(midiToFreq(note), this.nextNoteTime, 1.7, 0.5);
+      const freq = midiToFreq(note);
+      const noteSeconds = beats * beat;
+      this.voices.playNote(voice, freq, this.nextNoteTime, noteSeconds, {
+        glideFrom: this.prevMelodyFreq,
+        damp: pluckDamp,
+      });
       const bass = this.bassByIndex.get(this.noteIndex);
-      if (bass !== undefined) this.playTone(midiToFreq(bass), this.nextNoteTime, 2.4, 0.22);
-      this.nextNoteTime += beats * beat;
+      if (bass !== undefined) {
+        this.voices.playNote(bassVoice, midiToFreq(bass), this.nextNoteTime, noteSeconds, {
+          peak: 0.22,
+          damp: pluckDamp,
+        });
+      }
+      this.prevMelodyFreq = freq;
+      this.nextNoteTime += noteSeconds;
       this.noteIndex = (this.noteIndex + 1) % melody.length;
     }
-  }
-
-  private playTone(frequency: number, time: number, decay: number, peak: number) {
-    const a = this.context!;
-    // A music-box tine rings with a fundamental plus a couple of bright partials.
-    const partials: [number, number][] = [
-      [1, 1],
-      [2, 0.35],
-      [2.76, 0.14],
-    ];
-    for (const [ratio, weight] of partials) {
-      const osc = a.createOscillator();
-      const gain = a.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = frequency * ratio;
-      gain.gain.setValueAtTime(0, time);
-      gain.gain.linearRampToValueAtTime(peak * weight, time + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.0001, time + decay);
-      osc.connect(gain).connect(this.master!);
-      osc.start(time);
-      osc.stop(time + decay + 0.05);
-      osc.onended = () => {
-        osc.disconnect();
-        gain.disconnect();
-      };
+    if (percussion) {
+      if (this.percNextTime < a.currentTime - 0.25) {
+        this.percNextTime = a.currentTime + 0.05;
+        this.percStep = 0; // re-align the pattern to the bar start
+      }
+      const stepSeconds = beat / 2;
+      while (this.percNextTime < a.currentTime + 0.12) {
+        const hit = percussion[this.percStep % percussion.length];
+        if (hit) this.voices.playDrum(hit, this.percNextTime);
+        this.percNextTime += stepSeconds;
+        this.percStep++;
+      }
     }
   }
 
@@ -110,5 +131,6 @@ export class MusicBoxAudio {
     void this.context?.close();
     this.context = null;
     this.master = null;
+    this.voices = null;
   }
 }
