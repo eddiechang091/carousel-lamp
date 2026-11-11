@@ -68,6 +68,29 @@ describe("llm client", () => {
     });
   });
 
+  it("forwards search: true and returns the proxy's searched flag", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        text: "Fresh facts",
+        model: "acme/vision-1",
+        usage: { prompt_tokens: 120, completion_tokens: 8, total_tokens: 128 },
+        searched: true,
+      }),
+    });
+    const llm = await getLlmService();
+    const result = await llm.complete({
+      messages: [{ role: "user", content: "hi" }],
+      search: true,
+    });
+    expect(result.searched).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as {
+      search?: boolean;
+    };
+    expect(body.search).toBe(true);
+  });
+
   it("records nothing when the proxy reports no usage", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
