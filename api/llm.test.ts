@@ -175,6 +175,37 @@ describe("api/llm proxy", () => {
     expect(second.model).toBe("other/vision-2");
   });
 
+  it("walks the whole OTARI_MODELS chain until one model answers", async () => {
+    vi.stubEnv("OTARI_MODELS", "a/one, b/two, c/three");
+    fetchMock
+      .mockResolvedValueOnce(failWith(500))
+      .mockResolvedValueOnce(failWith(503))
+      .mockResolvedValueOnce(okChoice("Third time", undefined, "c/three"));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages } }, res);
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({
+      text: "Third time",
+      model: "c/three",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const models = fetchMock.mock.calls.map(
+      (c) => JSON.parse(c[1].body as string) as { model: string },
+    ).map((b) => b.model);
+    expect(models).toEqual(["a/one", "b/two", "c/three"]);
+  });
+
+  it("returns 502 when every model in the chain fails", async () => {
+    vi.stubEnv("OTARI_MODELS", "a/one, b/two, c/three");
+    fetchMock.mockResolvedValue(failWith(500));
+    const res = mockRes();
+    await handler({ method: "POST", body: { messages } }, res);
+    expect(res.statusCode).toBe(502);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it("returns 502 when the primary fails and no fallback is configured", async () => {
     fetchMock.mockResolvedValue(failWith(500));
     const res = mockRes();
@@ -208,18 +239,28 @@ describe("api/llm proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("uses an explicitly picked allowed model and does not retry the fallback", async () => {
+  it("an explicitly picked model falls through to the rest of the chain when it fails", async () => {
     vi.stubEnv("OTARI_FALLBACK_MODEL", "other/vision-2");
-    fetchMock.mockResolvedValue(failWith(500));
+    fetchMock
+      .mockResolvedValueOnce(failWith(500))
+      .mockResolvedValueOnce(okChoice("Primary covered", undefined, "acme/vision-1"));
     const res = mockRes();
     await handler(
       { method: "POST", body: { messages, model: "other/vision-2" } },
       res,
     );
-    expect(res.statusCode).toBe(502);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string) as { model: string };
-    expect(body.model).toBe("other/vision-2");
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toEqual({
+      text: "Primary covered",
+      model: "acme/vision-1",
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      searched: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const models = fetchMock.mock.calls.map(
+      (c) => JSON.parse(c[1].body as string) as { model: string },
+    ).map((b) => b.model);
+    expect(models).toEqual(["other/vision-2", "acme/vision-1"]);
   });
 
   it("returns usage null when the upstream response carries none", async () => {

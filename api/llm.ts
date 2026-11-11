@@ -3,14 +3,19 @@
 //
 // The Otari API key lives only in the server environment
 // (OTARI_API_KEY). It is never sent to the browser, never logged, and
-// never included in any response. The model is also server-side only:
-// OTARI_MODEL, with OTARI_FALLBACK_MODEL retried once on failure
-// (multi-provider routing). No model ID is hardcoded anywhere.
+// never included in any response. The model is also server-side only.
+// No model ID is hardcoded anywhere.
 //
 // Allowed models: OTARI_MODELS (comma-separated provider/model list)
 // when set, else [OTARI_MODEL, OTARI_FALLBACK_MODEL]. The POST body
 // may name one of them as `model`; anything else is rejected with 400.
 // Add models later by editing the Vercel env var — no code change.
+//
+// Fallback chain: a call walks the allowlist in order until one model
+// answers — the first entry is the primary (OTARI_MODEL when
+// OTARI_MODELS is unset), and a failure automatically switches to the
+// next model in line. An explicitly picked model is tried first, then
+// the rest of the list in order.
 //
 // Base URL defaults to the US endpoint and can be overridden for EU
 // accounts (OTARI_BASE_URL=https://eu.api.otari.ai/api/v1).
@@ -284,8 +289,14 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
     jsonError(res, 400, "Unknown model — pick one from the list returned by GET /api/llm.");
     return;
   }
-  const model = requestedModel ?? process.env.OTARI_MODEL;
-  if (!model) {
+  // Fallback chain: the attempt order is the allowlist in order, with
+  // an explicitly picked model moved to the front. The primary is the
+  // first entry (OTARI_MODEL when OTARI_MODELS is unset); each failure
+  // automatically switches to the next model in line.
+  const chain = requestedModel
+    ? [requestedModel, ...allowedModels.filter((m) => m !== requestedModel)]
+    : allowedModels;
+  if (chain.length === 0) {
     jsonError(
       res,
       503,
@@ -293,50 +304,44 @@ export default async function handler(req: HandlerReq, res: HandlerRes): Promise
     );
     return;
   }
-  // An explicitly picked model is tried on its own; the fallback retry
-  // only applies to the default (OTARI_MODEL) path.
-  const fallbackModel = requestedModel ? "" : process.env.OTARI_FALLBACK_MODEL || "";
   const baseUrl = (process.env.OTARI_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 
   // Log only the outcome and the model used — never the key, never the
   // request body (it carries image data URLs).
-  const primary = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature, search);
-  if (primary.ok) {
-    console.log(`[api/llm] ok model=${primary.model} search=${search} tokens=${primary.usage?.total_tokens ?? "?"}`);
-    res.status(200).json({ text: primary.text, model: primary.model, usage: primary.usage, searched: search });
-    return;
-  }
-  // A search-enabled call can fail when the gateway has no search
-  // backend behind it (hosted vs self-hosted). That must not take the
-  // feature down: retry the same model without the tool, i.e. plain
-  // model knowledge, before trying the other model.
-  let lastFailure = primary;
-  if (search) {
-    console.log(`[api/llm] search call failed status=${primary.status} model=${model}, retrying without search`);
-    const plain = await callOtari(baseUrl, apiKey, model, messages, maxTokens, temperature, false);
-    if (plain.ok) {
-      console.log(`[api/llm] ok model=${plain.model} search=false (search fallback) tokens=${plain.usage?.total_tokens ?? "?"}`);
-      res.status(200).json({ text: plain.text, model: plain.model, usage: plain.usage, searched: false });
+  let lastHttpStatus = 0;
+  for (let i = 0; i < chain.length; i++) {
+    const candidate = chain[i];
+    const isFirst = i === 0;
+    // A search-enabled call can fail when the gateway has no search
+    // backend behind it (hosted vs self-hosted). That must not take the
+    // feature down: retry the same model without the tool, i.e. plain
+    // model knowledge, before trying the next model in line.
+    const withSearch = search && isFirst;
+    const attempt = await callOtari(baseUrl, apiKey, candidate, messages, maxTokens, temperature, withSearch);
+    if (attempt.ok) {
+      console.log(`[api/llm] ok model=${attempt.model} search=${withSearch} tokens=${attempt.usage?.total_tokens ?? "?"}${isFirst ? "" : " (fallback)"}`);
+      res.status(200).json({ text: attempt.text, model: attempt.model, usage: attempt.usage, searched: withSearch });
       return;
     }
-    lastFailure = plain;
-  }
-  if (fallbackModel && fallbackModel !== model) {
-    console.log(`[api/llm] primary failed status=${lastFailure.status} model=${model}, retrying fallback model=${fallbackModel}`);
-    const fallback = await callOtari(baseUrl, apiKey, fallbackModel, messages, maxTokens, temperature, false);
-    if (fallback.ok) {
-      console.log(`[api/llm] ok model=${fallback.model} tokens=${fallback.usage?.total_tokens ?? "?"} (fallback)`);
-      res.status(200).json({ text: fallback.text, model: fallback.model, usage: fallback.usage, searched: false });
-      return;
+    if (attempt.status !== 0) lastHttpStatus = attempt.status;
+    if (withSearch) {
+      console.log(`[api/llm] search call failed status=${attempt.status} model=${candidate}, retrying without search`);
+      const plain = await callOtari(baseUrl, apiKey, candidate, messages, maxTokens, temperature, false);
+      if (plain.ok) {
+        console.log(`[api/llm] ok model=${plain.model} search=false (search fallback) tokens=${plain.usage?.total_tokens ?? "?"}`);
+        res.status(200).json({ text: plain.text, model: plain.model, usage: plain.usage, searched: false });
+        return;
+      }
+      if (plain.status !== 0) lastHttpStatus = plain.status;
     }
-    console.log(`[api/llm] fallback failed status=${fallback.status} model=${fallbackModel}`);
-    jsonError(res, 502, upstreamErrorMessage(fallback.status || lastFailure.status));
-    return;
+    if (i < chain.length - 1) {
+      console.log(`[api/llm] model failed status=${lastHttpStatus} model=${candidate}, trying next in chain`);
+    }
   }
-  if (lastFailure.status === 0) {
+  if (lastHttpStatus === 0) {
     jsonError(res, 502, "Could not reach Otari — check the network and OTARI_BASE_URL, then try again.");
     return;
   }
-  console.log(`[api/llm] failed status=${lastFailure.status} model=${model}`);
-  jsonError(res, 502, upstreamErrorMessage(lastFailure.status));
+  console.log(`[api/llm] all models failed status=${lastHttpStatus}`);
+  jsonError(res, 502, upstreamErrorMessage(lastHttpStatus));
 }
