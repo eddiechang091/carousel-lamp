@@ -190,6 +190,8 @@
   box-shadow: 0 8px 28px #100a181c, inset 0 1px 0 #ffffff0a;
 }
 .night .model-toggle:hover { background: #ffffff12; }
+.auth-button span { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auth-avatar { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex: none; }
 
 .bottom {
   position: absolute; z-index: 3; bottom: 0; left: 0; right: 0;

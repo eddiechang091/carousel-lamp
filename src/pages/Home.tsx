@@ -54,6 +54,7 @@ import ModelDashboard from '@/components/ModelDashboard';
 import PonyMascot from '@/components/PonyMascot';
 import LanguageSwitcher from '@/components/common/LanguageSwitcher';
 import ThemeSwitcher from '@/components/common/ThemeSwitcher';
+import AuthButton from '@/components/AuthButton';
 
 type Memory = {
   source: string;
@@ -765,6 +766,7 @@ export default function Home() {
           {t('model.title')}
         </button>
         <LanguageSwitcher />
+        <AuthButton onNotice={setNotice} />
       </div>
       <h1 className="ribbon-title" aria-label="Carousel Lamp">
         <img src="/carousel-lamp-title-clean.png" alt="" width={900} height={780} draggable={false} />
