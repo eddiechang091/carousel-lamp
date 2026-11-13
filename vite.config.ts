@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import svgr from "vite-plugin-svgr";
 import path from "path";
+import carouselLampPwaSw from "./scripts/pwa-sw-plugin";
 
 export default defineConfig({
   // Static-spa bundle: relative paths so bundle/index.html works
@@ -16,6 +17,8 @@ export default defineConfig({
         namedExport: "ReactComponent",
       },
     }),
+    // Emits bundle/sw.js (PWA service worker) from the build output.
+    carouselLampPwaSw(),
   ],
   resolve: {
     alias: {
